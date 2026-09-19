@@ -7,7 +7,8 @@ compatibility_flags = ["nodejs_compat"]
 # Environment Variables (Worker-side)
 # ============================================================
 [vars]
-API_BASE_URL = "https://planetary-max.jurreaumax.workers.dev"
+API_BASE_URL = https://planetary-max1.jurreau2.workers.dev
+
 MAXOS_MODULE = "local"
 PLANETARY_MODE = "single"
 UMBRELLA_ENFORCEMENT = "strict"
