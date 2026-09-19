@@ -83,7 +83,24 @@ class MultiDomainScheduler:
         self.sim_trajectory = SIMTrajectory()
         self.sim_trajectory.append(SIMState({"observations": 0}))
         self.substrate = SubstrateState()
-        self.tec = TECPipeline(SubstrateSurface(self.substrate), timeout_ms=cycle_ms, max_steps=max_steps)
+        self.tec = TECPipeline(
+            SubstrateSurface(self.substrate),
+            timeout_ms=cycle_ms,
+            max_steps=max_steps,
+            autonomy_provider=self._autonomy_state,
+        )
+
+    def _autonomy_state(self) -> Dict[str, Any]:
+        return {
+            "status": "ready",
+            "scheduler": {
+                "running": self.running,
+                "cycleMs": self.cycle_ms,
+                "maxSteps": self.max_steps,
+            },
+            "lastSequence": dict(self.last_sequence),
+            "lanes": {lane.value: self.lanes[lane].stats() for lane in SchedulerLane},
+        }
 
     def register_handler(self, lane: SchedulerLane, handler: Callable[[ScheduledMessage], Any]) -> None:
         self.handlers[lane] = handler
@@ -167,7 +184,7 @@ class MultiDomainScheduler:
         if lane == SchedulerLane.ORCHESTRATION.value:
             payload = dict(envelope["payload"])
             message_type = str(envelope["type"])
-            if message_type.startswith("universe."):
+            if message_type == "autonomy.state" or message_type.startswith("universe."):
                 task: Dict[str, Any] = {"operation": message_type, "payload": payload}
             elif message_type == "ecosystem.step":
                 task = dict(payload.get("task") or {"operation": "universe.tick", "payload": payload.get("universe", {})})

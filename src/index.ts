@@ -15,10 +15,17 @@ type KernelService = {
 type Bindings = {
   KERNEL_SERVICE?: KernelService;
   KERNEL_URL?: string;
+  PLANETARY_MODE?: string;
+  UMBRELLA_ENFORCEMENT?: string;
 };
 
 type KernelResult = {
   ok?: boolean;
+  messageId?: unknown;
+  type?: unknown;
+  identity?: unknown;
+  route?: unknown;
+  result?: unknown;
   error?: { code?: string; message?: string };
   [key: string]: unknown;
 };
@@ -63,8 +70,9 @@ app.post('/api/kernel/message', async (c) => {
   return kernelResponse(c.env, envelope);
 });
 
-app.get('/universe/state', async (c) => universeRequest(c.env, c.req.header('Authorization'), 'universe.state', {}));
-app.get('/universe/umbrella', async (c) => universeRequest(c.env, c.req.header('Authorization'), 'universe.umbrella', {}));
+app.get('/api/autonomy', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'autonomy.state', {}));
+app.get('/universe/state', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'universe.state', {}));
+app.get('/universe/umbrella', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'universe.umbrella', {}));
 app.post('/universe/tick', async (c) => {
   let payload: Record<string, unknown> = {};
   const contentType = c.req.header('Content-Type') ?? '';
@@ -77,10 +85,10 @@ app.post('/universe/tick', async (c) => {
       return c.json({ ok: false, error: { code: 'INVALID_JSON', message: 'Request body must be JSON' } }, 400);
     }
   }
-  return universeRequest(c.env, c.req.header('Authorization'), 'universe.tick', payload);
+  return normalizedRequest(c.env, c.req.header('Authorization'), 'universe.tick', payload);
 });
 
-async function universeRequest(
+async function normalizedRequest(
   env: Bindings,
   authorization: string | undefined,
   type: string,
@@ -90,7 +98,7 @@ async function universeRequest(
   if (!identity) {
     return Response.json({ ok: false, error: { code: 'UNAUTHENTICATED', message: 'Bearer token required' } }, { status: 401 });
   }
-  return kernelResponse(env, createEnvelope(type, payload, identity, { surface: 'worker-universe' }));
+  return kernelResponse(env, createEnvelope(type, payload, identity, { surface: 'worker-api' }), true);
 }
 
 function createEnvelope(
@@ -102,12 +110,13 @@ function createEnvelope(
   return { id: crypto.randomUUID(), type, payload, identity, governanceContext };
 }
 
-async function kernelResponse(env: Bindings, envelope: KernelEnvelope): Promise<Response> {
+async function kernelResponse(env: Bindings, envelope: KernelEnvelope, normalize = false): Promise<Response> {
   try {
     const response = await callKernel(env, envelope);
     const result = await response.json<KernelResult>();
     const status = result.ok === false ? kernelErrorStatus(result.error?.code) : response.status;
-    return Response.json(result, { status });
+    if (result.ok === false || !normalize) return Response.json(result, { status });
+    return Response.json(normalizeKernelResult(result, envelope), { status });
   } catch (error) {
     console.error('Worker to kernel bridge failed', error);
     return Response.json(
@@ -115,6 +124,28 @@ async function kernelResponse(env: Bindings, envelope: KernelEnvelope): Promise<
       { status: 503 },
     );
   }
+}
+
+function normalizeKernelResult(result: KernelResult, envelope: KernelEnvelope): Record<string, unknown> {
+  return {
+    ok: true,
+    data: extractLaneData(result),
+    meta: {
+      messageId: result.messageId ?? envelope.id,
+      type: result.type ?? envelope.type,
+      identity: result.identity ?? envelope.identity,
+      route: result.route ?? [],
+    },
+  };
+}
+
+function extractLaneData(response: unknown): unknown {
+  if (!isRecord(response) || !isRecord(response.result)) return {};
+  const lanes = response.result.lanes;
+  if (!Array.isArray(lanes) || !isRecord(lanes[0]) || !isRecord(lanes[0].result)) return {};
+  const results = lanes[0].result.results;
+  if (!Array.isArray(results) || !isRecord(results[0]) || !isRecord(results[0].result)) return {};
+  return results[0].result.data ?? {};
 }
 
 async function callKernel(env: Bindings, envelope: KernelEnvelope): Promise<Response> {
@@ -148,5 +179,5 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export { app, createEnvelope };
+export { app, createEnvelope, extractLaneData };
 export default app;

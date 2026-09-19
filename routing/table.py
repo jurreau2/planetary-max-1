@@ -7,6 +7,7 @@ ROUTES = {
     "task": ("orchestration",),
     "substrate": ("substrate",),
     "governance": ("governance",),
+    "autonomy.state": ("orchestration",),
     "universe.start": ("orchestration",),
     "universe.tick": ("orchestration",),
     "universe.state": ("orchestration",),
@@ -22,6 +23,7 @@ LANE_ACTIONS = {
 }
 
 MESSAGE_ACTIONS = {
+    "autonomy.state": "autonomy.read",
     "universe.start": "universe.start",
     "universe.tick": "universe.tick",
     "universe.state": "universe.read",

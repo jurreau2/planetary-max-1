@@ -125,6 +125,24 @@ printf '%s' '{"id":"demo","type":"sim","payload":{},"identity":"a-locally-genera
 
 Identity tokens are loaded from `PORTAL_SYSTEM_TOKEN`, `PORTAL_SERVICE_TOKEN`,
 and `PORTAL_OBSERVER_TOKEN`; there are no built-in production credentials.
+The GUI must send one of those exact configured values as
+`Authorization: Bearer <token>`. The Worker forwards the token unchanged and
+the kernel registry remains authoritative: the service token has operator
+access, the observer token can read autonomy/universe state, and observers are
+denied access to `POST /universe/tick`. Keep these values in deployment secrets;
+do not hard-code them in browser bundles or logs.
+
+The high-level Worker endpoints (`GET /api/autonomy`, `GET /universe/state`,
+`GET /universe/umbrella`, and `POST /universe/tick`) return a shared contract:
+
+```json
+{"ok":true,"data":{},"meta":{"messageId":"...","type":"universe.state","identity":{},"route":["orchestration"]}}
+```
+
+On failure, the Worker preserves the structured kernel response and HTTP
+status. GUI clients should parse the JSON response before throwing and display
+`error.code` together with `error.message` (for example `UNAUTHENTICATED`,
+`FORBIDDEN`, or `INVALID_MESSAGE`).
 
 Set `MAXOS_MODULE` to the installed MAX-OS-1 Python module exporting
 `MaxOsUnifiedOrchestrator`. Without it, a deterministic in-memory universe is
