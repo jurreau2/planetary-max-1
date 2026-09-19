@@ -12,6 +12,7 @@ Portal-OS is a distributed operating system built on Cloudflare Workers, with a 
 ```
 src/
   ├── index.ts                    # Cloudflare Workers entrypoint (Hono)
+portal-os-gui/                    # Vite + React Cloudflare Pages frontend
 kernel/
   ├── boot.py                     # Kernel initialization
   ├── scheduler.py                # Multi-domain scheduler
@@ -225,6 +226,48 @@ Both accept:
 The Worker forwards bearer and `tier` unchanged. The kernel caps the requested
 tier to the bearer entitlement before the SIM export filters detail, then the
 Worker returns normalized `{"ok":true,"data":{...},"meta":{...}}` JSON.
+
+### Crossworld access and structural truth
+
+The SET 4 Umbrella products complete the licensed surface with two additional
+kernel-authorized operations:
+
+- `POST /umbrella/crossworld/access` routes to `umbrella.crossworld.access`.
+  Basic includes the access signature and reachable worlds; professional adds
+  the traversal map; enterprise adds quantum-bridge detail.
+- `POST /umbrella/structural/truth/license` routes to
+  `structural.truth.license`. Basic includes the truth signature and coherence;
+  professional adds the structural truth map; enterprise adds contradiction
+  vectors.
+
+Both routes forward the bearer identity and requested `tier` unchanged to the
+kernel. Entitlement resolution and product logic remain in the TEC licensing
+pipeline; the Worker only normalizes the kernel response.
+
+### Portal GUI
+
+The GUI is an isolated Vite + React package in `portal-os-gui/`. For local
+development:
+
+```bash
+cd portal-os-gui
+npm ci
+npm run dev
+```
+
+The development environment points to
+`https://planetary-max.jurreaumax.workers.dev`. The browser sends the configured
+bearer token only for the current in-memory session.
+
+For Cloudflare Pages use:
+
+- Project root: `portal-os-gui`
+- Build command: `npm run build`
+- Output directory: `dist`
+- Environment variable: `API_BASE_URL=https://planetary-max.jurreaumax.workers.dev`
+
+`VITE_API_BASE_URL` is also accepted. Once DNS is active, set either variable
+to `https://api.portal-os.com` and rebuild the Pages deployment.
 
 Set `MAXOS_MODULE` to the installed MAX-OS-1 Python module exporting
 `MaxOsUnifiedOrchestrator`. Without it, a deterministic in-memory universe is

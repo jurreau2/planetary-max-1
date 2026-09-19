@@ -9,7 +9,9 @@ from cognitive.licensing import (
     export_identity_physics,
     export_identity_mirror,
     export_market_forecast,
+    export_crossworld_access,
     export_sim_pack,
+    export_structural_truth,
     resolve_license_tier,
 )
 from maxos_bridge import get_umbrella_status, get_universe_state, start_universe, tick_universe
@@ -70,6 +72,8 @@ class TECPipeline:
             "umbrella.sim.pack": export_sim_pack,
             "umbrella.market.forecast": export_market_forecast,
             "umbrella.identity.mirror": export_identity_mirror,
+            "umbrella.crossworld.access": export_crossworld_access,
+            "structural.truth.license": export_structural_truth,
         }
         if operation in umbrella_exports:
             payload = task.get("payload")

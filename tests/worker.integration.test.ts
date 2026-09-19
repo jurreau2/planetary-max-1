@@ -56,6 +56,8 @@ describe('normalized Worker integration routes', () => {
     ['POST', '/umbrella/sim/pack', 'umbrella.sim.pack'],
     ['POST', '/umbrella/market/forecast', 'umbrella.market.forecast'],
     ['POST', '/umbrella/identity/mirror', 'umbrella.identity.mirror'],
+    ['POST', '/umbrella/crossworld/access', 'umbrella.crossworld.access'],
+    ['POST', '/umbrella/structural/truth/license', 'structural.truth.license'],
   ])('normalizes %s %s lane data', async (method, path, type) => {
     let forwarded: KernelEnvelope | undefined;
     const response = await app.request(path, {
@@ -202,6 +204,22 @@ describe('normalized Worker integration routes', () => {
       ok: false,
       error: { code: 'INVALID_JSON', message: 'Umbrella payload must be an object' },
     });
+  });
+
+  it('allows browser preflight requests for Umbrella routes', async () => {
+    const response = await app.request('/umbrella/crossworld/access', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://portal-os.com',
+        'Access-Control-Request-Method': 'POST',
+        'Access-Control-Request-Headers': 'authorization,content-type',
+      },
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('POST');
+    expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
   });
 });
 

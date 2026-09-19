@@ -194,6 +194,8 @@ class MultiDomainScheduler:
                     "umbrella.sim.pack",
                     "umbrella.market.forecast",
                     "umbrella.identity.mirror",
+                    "umbrella.crossworld.access",
+                    "structural.truth.license",
                 }
             ):
                 task: Dict[str, Any] = {
