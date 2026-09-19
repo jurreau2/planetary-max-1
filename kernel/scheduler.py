@@ -187,7 +187,14 @@ class MultiDomainScheduler:
             if (
                 message_type == "autonomy.state"
                 or message_type.startswith("universe.")
-                or message_type in {"identity.physics.license", "governance.engine.license"}
+                or message_type in {
+                    "identity.physics.license",
+                    "governance.engine.license",
+                    "apex.alignment.advisory",
+                    "umbrella.sim.pack",
+                    "umbrella.market.forecast",
+                    "umbrella.identity.mirror",
+                }
             ):
                 task: Dict[str, Any] = {
                     "operation": message_type,

@@ -20,6 +20,30 @@ GOVERNANCE_ENGINE_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
     "enterprise": ("mode", "structure", "apexAlignment", "collapseVectors"),
 }
 
+APEX_ADVISORY_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("apexVector", "alignmentScore"),
+    "professional": ("apexVector", "alignmentScore", "structuralAlignmentMap"),
+    "enterprise": ("apexVector", "alignmentScore", "structuralAlignmentMap", "collapseVectorRisk"),
+}
+
+SIM_PACK_COMPOSITION: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("identitySim",),
+    "professional": ("identitySim", "governanceSim", "apexSim"),
+    "enterprise": ("identitySim", "governanceSim", "apexSim", "marketSim"),
+}
+
+MARKET_FORECAST_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("marketVector", "trendProjection"),
+    "professional": ("marketVector", "trendProjection", "volatilityBand"),
+    "enterprise": ("marketVector", "trendProjection", "volatilityBand", "collapseVectorRisk"),
+}
+
+IDENTITY_MIRROR_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("identitySignature",),
+    "professional": ("identitySignature", "behavioralProjection", "structuralTruthMap"),
+    "enterprise": ("identitySignature", "behavioralProjection", "structuralTruthMap", "quantumBranchPreview"),
+}
+
 
 @dataclass(frozen=True)
 class LicenseGrant:
@@ -107,15 +131,156 @@ def export_governance_engine(payload: Mapping[str, Any], grant: LicenseGrant) ->
     )
 
 
+def export_apex_alignment(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Export deterministic apex-alignment advice filtered by effective tier."""
+    model_input = _model_input(payload)
+    digest = _digest("apex-alignment", model_input)
+    apex_vector = _vector(digest, 0)
+    alignment_score = round(0.5 + int.from_bytes(digest[3:5], "big") / 131070, 6)
+    structure = _governance_structure(model_input)
+    structural_map = {
+        "apex": structure["apex"],
+        "nodes": [
+            {
+                "id": node,
+                "alignment": round(0.4 + digest[(8 + index) % len(digest)] / 425, 6),
+            }
+            for index, node in enumerate(structure["nodes"])
+        ],
+    }
+    collapse_vector = _vector(digest, 16)
+    collapse_risk = round(max(0.0, min(1.0, 1.0 - alignment_score * 0.75 + _magnitude(collapse_vector) * 0.25)), 6)
+    outputs: Dict[str, Any] = {
+        "apexVector": apex_vector,
+        "alignmentScore": alignment_score,
+        "structuralAlignmentMap": structural_map,
+        "collapseVectorRisk": {
+            "score": collapse_risk,
+            "classification": "high" if collapse_risk >= 0.65 else "moderate" if collapse_risk >= 0.35 else "low",
+            "vector": collapse_vector,
+        },
+    }
+    return _licensed_payload(
+        "apex-alignment-advisory",
+        grant,
+        APEX_ADVISORY_OUTPUTS[grant.effective],
+        outputs,
+    )
+
+
+def export_sim_pack(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Bundle deterministic SIM products according to the effective license tier."""
+    model_input = _model_input(payload)
+    digest = _digest(f"umbrella-sim-pack:{grant.effective}", model_input)
+    composition = SIM_PACK_COMPOSITION[grant.effective]
+    simulations: Dict[str, Any] = {}
+    if "identitySim" in composition:
+        simulations["identitySim"] = export_identity_physics(payload, grant)
+    if "governanceSim" in composition:
+        simulations["governanceSim"] = export_governance_engine(payload, grant)
+    if "apexSim" in composition:
+        simulations["apexSim"] = export_apex_alignment(payload, grant)
+    if "marketSim" in composition:
+        simulations["marketSim"] = _market_sim(model_input)
+
+    stability_score = round(0.55 + int.from_bytes(digest[:2], "big") / 145634, 6)
+    outputs: Dict[str, Any] = {
+        "version": "sim-pack-v1",
+        "composition": list(composition),
+        "stability": {
+            "score": stability_score,
+            "classification": "stable" if stability_score >= 0.8 else "balanced",
+        },
+        "deterministicSeed": f"pack_v1_{digest.hex()[:32]}",
+        "simulations": simulations,
+    }
+    return _licensed_payload(
+        "umbrella-sim-pack",
+        grant,
+        ("version", "composition", "stability", "deterministicSeed", "simulations"),
+        outputs,
+        export_mode="sim-pack",
+    )
+
+
+def export_market_forecast(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Export deterministic market forecasts filtered by effective tier."""
+    model_input = _model_input(payload)
+    digest = _digest("umbrella-market-forecast", model_input)
+    market_vector = _vector(digest, 0)
+    baseline = int.from_bytes(digest[6:8], "big") / 65535
+    trend = (digest[8] - 127.5) / 127.5
+    trend_projection = [
+        {
+            "horizon": horizon,
+            "index": round(max(0.0, min(1.0, baseline + trend * horizon / 24)), 6),
+        }
+        for horizon in (1, 3, 6)
+    ]
+    volatility = round(0.05 + int.from_bytes(digest[10:12], "big") / 72817, 6)
+    volatility = min(volatility, 0.95)
+    collapse_vector = _vector(digest, 16)
+    collapse_risk = round(max(0.0, min(1.0, volatility * 0.7 + _magnitude(collapse_vector) * 0.3)), 6)
+    outputs: Dict[str, Any] = {
+        "marketVector": market_vector,
+        "trendProjection": trend_projection,
+        "volatilityBand": {
+            "low": round(max(0.0, baseline - volatility / 2), 6),
+            "mid": round(baseline, 6),
+            "high": round(min(1.0, baseline + volatility / 2), 6),
+        },
+        "collapseVectorRisk": {
+            "score": collapse_risk,
+            "classification": "high" if collapse_risk >= 0.65 else "moderate" if collapse_risk >= 0.35 else "low",
+            "vector": collapse_vector,
+        },
+    }
+    return _licensed_payload(
+        "umbrella-market-forecast",
+        grant,
+        MARKET_FORECAST_OUTPUTS[grant.effective],
+        outputs,
+        export_mode="market-forecast",
+    )
+
+
+def export_identity_mirror(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Export a deterministic identity mirror filtered by effective tier."""
+    model_input = _model_input(payload)
+    digest = _digest("umbrella-identity-mirror", model_input)
+    behavioral_projection = [
+        {
+            "phase": phase,
+            "vector": _vector(digest, 3 + index * 3),
+            "confidence": round(0.5 + digest[20 + index] / 510, 6),
+        }
+        for index, phase in enumerate(("near", "mid", "far"))
+    ]
+    outputs: Dict[str, Any] = {
+        "identitySignature": f"mirror_v1_{digest.hex()[:32]}",
+        "behavioralProjection": behavioral_projection,
+        "structuralTruthMap": _structural_truth_map(model_input, digest),
+        "quantumBranchPreview": _quantum_branches(digest),
+    }
+    return _licensed_payload(
+        "umbrella-identity-mirror",
+        grant,
+        IDENTITY_MIRROR_OUTPUTS[grant.effective],
+        outputs,
+        export_mode="identity-mirror",
+    )
+
+
 def _licensed_payload(
     product: str,
     grant: LicenseGrant,
     allowed_outputs: Sequence[str],
     outputs: Mapping[str, Any],
+    export_mode: str = "sim",
 ) -> Dict[str, Any]:
     response = {
         "product": product,
-        "exportMode": "sim",
+        "exportMode": export_mode,
         "tier": grant.effective,
         "requestedTier": grant.requested,
         "authorizedTier": grant.authorized,
@@ -147,6 +312,53 @@ def _digest(product: str, model_input: Mapping[str, Any]) -> bytes:
 
 def _vector(digest: bytes, offset: int) -> list[float]:
     return [round((digest[(offset + index) % len(digest)] - 127.5) / 127.5, 6) for index in range(3)]
+
+
+def _magnitude(vector: Sequence[float]) -> float:
+    return sum(abs(component) for component in vector) / len(vector)
+
+
+def _market_sim(model_input: Mapping[str, Any]) -> Dict[str, Any]:
+    digest = _digest("market-sim", model_input)
+    return {
+        "marketVector": _vector(digest, 0),
+        "demandIndex": round(int.from_bytes(digest[6:8], "big") / 65535, 6),
+        "resilienceScore": round(int.from_bytes(digest[10:12], "big") / 65535, 6),
+    }
+
+
+def _structural_truth_map(model_input: Mapping[str, Any], digest: bytes) -> Dict[str, Any]:
+    requested_facets = model_input.get("facets", ("identity", "behavior", "structure"))
+    if not isinstance(requested_facets, (list, tuple)) or not all(
+        isinstance(facet, str) and facet.strip() for facet in requested_facets
+    ):
+        raise ValueError("identity facets must be a list of non-empty strings")
+    facets = sorted(set(facet.strip() for facet in requested_facets))
+    if not facets:
+        raise ValueError("identity facets cannot be empty")
+    return {
+        "facets": [
+            {
+                "name": facet,
+                "truthScore": round(0.5 + digest[(24 + index) % len(digest)] / 510, 6),
+            }
+            for index, facet in enumerate(facets)
+        ],
+        "coherence": round(0.5 + digest[27] / 510, 6),
+    }
+
+
+def _quantum_branches(digest: bytes) -> list[Dict[str, Any]]:
+    weights = [digest[28] + 1, digest[29] + 1, digest[30] + 1]
+    total = sum(weights)
+    return [
+        {
+            "branch": f"q{index + 1}",
+            "probability": round(weight / total, 6),
+            "vector": _vector(digest, index * 5),
+        }
+        for index, weight in enumerate(weights)
+    ]
 
 
 def _governance_structure(model_input: Mapping[str, Any]) -> Dict[str, Any]:

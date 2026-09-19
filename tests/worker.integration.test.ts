@@ -52,6 +52,10 @@ describe('normalized Worker integration routes', () => {
     ['POST', '/universe/tick', 'universe.tick'],
     ['POST', '/umbrella/identity/license', 'identity.physics.license'],
     ['POST', '/umbrella/governance/license', 'governance.engine.license'],
+    ['POST', '/umbrella/apex/advisory', 'apex.alignment.advisory'],
+    ['POST', '/umbrella/sim/pack', 'umbrella.sim.pack'],
+    ['POST', '/umbrella/market/forecast', 'umbrella.market.forecast'],
+    ['POST', '/umbrella/identity/mirror', 'umbrella.identity.mirror'],
   ])('normalizes %s %s lane data', async (method, path, type) => {
     let forwarded: KernelEnvelope | undefined;
     const response = await app.request(path, {
@@ -196,7 +200,7 @@ describe('normalized Worker integration routes', () => {
     expect(called).toBe(false);
     expect(await response.json()).toEqual({
       ok: false,
-      error: { code: 'INVALID_JSON', message: 'License payload must be an object' },
+      error: { code: 'INVALID_JSON', message: 'Umbrella payload must be an object' },
     });
   });
 });

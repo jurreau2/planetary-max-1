@@ -30,6 +30,14 @@ type KernelResult = {
   [key: string]: unknown;
 };
 
+type UmbrellaOperation =
+  | 'identity.physics.license'
+  | 'governance.engine.license'
+  | 'apex.alignment.advisory'
+  | 'umbrella.sim.pack'
+  | 'umbrella.market.forecast'
+  | 'umbrella.identity.mirror';
+
 const app = new Hono<{ Bindings: Bindings }>();
 
 // ⭐ ROOT ROUTE — this fixes the 404 at /
@@ -73,17 +81,41 @@ app.post('/api/kernel/message', async (c) => {
 app.get('/api/autonomy', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'autonomy.state', {}));
 app.get('/universe/state', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'universe.state', {}));
 app.get('/universe/umbrella', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'universe.umbrella', {}));
-app.post('/umbrella/identity/license', async (c) => licensedRequest(
+app.post('/umbrella/identity/license', async (c) => umbrellaRequest(
   c.env,
   c.req.header('Authorization'),
   c.req.raw,
   'identity.physics.license',
 ));
-app.post('/umbrella/governance/license', async (c) => licensedRequest(
+app.post('/umbrella/governance/license', async (c) => umbrellaRequest(
   c.env,
   c.req.header('Authorization'),
   c.req.raw,
   'governance.engine.license',
+));
+app.post('/umbrella/apex/advisory', async (c) => umbrellaRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'apex.alignment.advisory',
+));
+app.post('/umbrella/sim/pack', async (c) => umbrellaRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'umbrella.sim.pack',
+));
+app.post('/umbrella/market/forecast', async (c) => umbrellaRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'umbrella.market.forecast',
+));
+app.post('/umbrella/identity/mirror', async (c) => umbrellaRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'umbrella.identity.mirror',
 ));
 app.post('/universe/tick', async (c) => {
   let payload: Record<string, unknown> = {};
@@ -113,11 +145,11 @@ async function normalizedRequest(
   return kernelResponse(env, createEnvelope(type, payload, identity, { surface: 'worker-api' }), true);
 }
 
-async function licensedRequest(
+async function umbrellaRequest(
   env: Bindings,
   authorization: string | undefined,
   request: Request,
-  type: 'identity.physics.license' | 'governance.engine.license',
+  type: UmbrellaOperation,
 ): Promise<Response> {
   const identity = bearerToken(authorization);
   if (!identity) {
@@ -127,10 +159,10 @@ async function licensedRequest(
   try {
     payload = await request.json();
   } catch {
-    return Response.json({ ok: false, error: { code: 'INVALID_JSON', message: 'License payload must be JSON' } }, { status: 400 });
+    return Response.json({ ok: false, error: { code: 'INVALID_JSON', message: 'Umbrella payload must be JSON' } }, { status: 400 });
   }
   if (!isRecord(payload)) {
-    return Response.json({ ok: false, error: { code: 'INVALID_JSON', message: 'License payload must be an object' } }, { status: 400 });
+    return Response.json({ ok: false, error: { code: 'INVALID_JSON', message: 'Umbrella payload must be an object' } }, { status: 400 });
   }
   return kernelResponse(
     env,

@@ -180,6 +180,52 @@ progressively licensed as mode and structure, apex alignment, and collapse
 vectors. Invalid or missing request tiers return `INVALID_MESSAGE`; missing
 bearer entitlements return `FORBIDDEN`.
 
+### Apex advisory and simulation packs
+
+Two additional Umbrella revenue products use the same bearer entitlement and
+normalized response contract:
+
+- `POST /umbrella/apex/advisory` routes to `apex.alignment.advisory` and
+  returns a deterministic apex vector and alignment score. Professional adds a
+  structural alignment map; enterprise adds collapse-vector risk.
+- `POST /umbrella/sim/pack` routes to `umbrella.sim.pack` and returns pack
+  version, composition, stability, deterministic seed, and SIM payloads.
+
+Both accept the same request shape:
+
+```json
+{"tier":"professional","input":{}}
+```
+
+The Worker forwards the bearer and requested `tier` unchanged. The kernel caps
+the tier before SIM export and reports the effective tier in normalized
+`{"ok":true,"data":{...},"meta":{...}}` responses. Basic packs contain the
+identity SIM; professional packs add governance and apex SIMs; enterprise
+packs add the market SIM.
+
+### Market forecasts and identity mirrors
+
+The SET 3 Umbrella products use the same request, entitlement, and normalized
+response contract:
+
+- `POST /umbrella/market/forecast` routes to `umbrella.market.forecast`.
+  Basic includes the deterministic market vector and trend projection;
+  professional adds the volatility band; enterprise adds collapse-vector risk.
+- `POST /umbrella/identity/mirror` routes to `umbrella.identity.mirror`.
+  Basic includes the deterministic mirrored identity signature; professional
+  adds behavioral projection and the structural truth map; enterprise adds the
+  quantum-branch preview.
+
+Both accept:
+
+```json
+{"tier":"professional","input":{}}
+```
+
+The Worker forwards bearer and `tier` unchanged. The kernel caps the requested
+tier to the bearer entitlement before the SIM export filters detail, then the
+Worker returns normalized `{"ok":true,"data":{...},"meta":{...}}` JSON.
+
 Set `MAXOS_MODULE` to the installed MAX-OS-1 Python module exporting
 `MaxOsUnifiedOrchestrator`. Without it, a deterministic in-memory universe is
 used for local development and integration tests.
