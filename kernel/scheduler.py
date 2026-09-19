@@ -184,8 +184,16 @@ class MultiDomainScheduler:
         if lane == SchedulerLane.ORCHESTRATION.value:
             payload = dict(envelope["payload"])
             message_type = str(envelope["type"])
-            if message_type == "autonomy.state" or message_type.startswith("universe."):
-                task: Dict[str, Any] = {"operation": message_type, "payload": payload}
+            if (
+                message_type == "autonomy.state"
+                or message_type.startswith("universe.")
+                or message_type in {"identity.physics.license", "governance.engine.license"}
+            ):
+                task: Dict[str, Any] = {
+                    "operation": message_type,
+                    "payload": payload,
+                    "identity": dict(envelope.get("_identity", {})),
+                }
             elif message_type == "ecosystem.step":
                 task = dict(payload.get("task") or {"operation": "universe.tick", "payload": payload.get("universe", {})})
             else:

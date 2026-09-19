@@ -8,6 +8,8 @@ ROUTES = {
     "substrate": ("substrate",),
     "governance": ("governance",),
     "autonomy.state": ("orchestration",),
+    "identity.physics.license": ("orchestration",),
+    "governance.engine.license": ("orchestration",),
     "universe.start": ("orchestration",),
     "universe.tick": ("orchestration",),
     "universe.state": ("orchestration",),
@@ -24,6 +26,8 @@ LANE_ACTIONS = {
 
 MESSAGE_ACTIONS = {
     "autonomy.state": "autonomy.read",
+    "identity.physics.license": "identity.physics.license",
+    "governance.engine.license": "governance.engine.license",
     "universe.start": "universe.start",
     "universe.tick": "universe.tick",
     "universe.state": "universe.read",

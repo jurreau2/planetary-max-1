@@ -144,6 +144,29 @@ status. GUI clients should parse the JSON response before throwing and display
 `error.code` together with `error.message` (for example `UNAUTHENTICATED`,
 `FORBIDDEN`, or `INVALID_MESSAGE`).
 
+### Umbrella licensing exports
+
+The Worker exposes two kernel-authorized SIM product exports:
+
+- `POST /umbrella/identity/license` routes to `identity.physics.license`.
+- `POST /umbrella/governance/license` routes to `governance.engine.license`.
+
+Both accept an object shaped like
+`{"licenseTier":"professional","input":{...}}` and return the same
+`{ok,data,meta}` contract as the universe endpoints. The bearer identity's
+registry attribute `licenseTier` is authoritative; a caller may select that
+tier or a lower one but cannot escalate it. Set `PORTAL_SYSTEM_LICENSE_TIER`,
+`PORTAL_SERVICE_LICENSE_TIER`, or `PORTAL_OBSERVER_LICENSE_TIER` alongside the
+corresponding token to grant a built-in environment-backed identity a tier.
+Supported values are `basic`, `professional`, and `enterprise`; identities
+without an explicit valid tier cannot use licensing exports.
+
+Identity Physics outputs are progressively licensed as identity signature,
+stability metrics, and curvature vectors. Governance Engine outputs are
+progressively licensed as mode and structure, apex alignment, and collapse
+vectors. Invalid tiers return `INVALID_MESSAGE`; missing entitlements and tier
+escalation return `FORBIDDEN`.
+
 Set `MAXOS_MODULE` to the installed MAX-OS-1 Python module exporting
 `MaxOsUnifiedOrchestrator`. Without it, a deterministic in-memory universe is
 used for local development and integration tests.

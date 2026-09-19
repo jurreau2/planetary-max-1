@@ -30,14 +30,16 @@ class IdentityRegistry:
     def __init__(self) -> None:
         self._tokens: Dict[str, Identity] = {}
         configured = (
-            ("PORTAL_SYSTEM_TOKEN", "system", ("admin",)),
-            ("PORTAL_SERVICE_TOKEN", "portal-worker", ("operator",)),
-            ("PORTAL_OBSERVER_TOKEN", "observer", ("observer",)),
+            ("PORTAL_SYSTEM_TOKEN", "PORTAL_SYSTEM_LICENSE_TIER", "system", ("admin",)),
+            ("PORTAL_SERVICE_TOKEN", "PORTAL_SERVICE_LICENSE_TIER", "portal-worker", ("operator",)),
+            ("PORTAL_OBSERVER_TOKEN", "PORTAL_OBSERVER_LICENSE_TIER", "observer", ("observer",)),
         )
-        for variable, name, roles in configured:
-            token = os.environ.get(variable)
+        for token_variable, tier_variable, name, roles in configured:
+            token = os.environ.get(token_variable)
             if token:
-                self.register(token, name, roles)
+                configured_tier = os.environ.get(tier_variable)
+                attributes = {"licenseTier": configured_tier} if configured_tier else {}
+                self.register(token, name, roles, attributes)
 
     def register(self, token: str, name: str, roles: Iterable[str], attributes: Optional[Mapping[str, Any]] = None) -> Identity:
         if not token or not token.strip():
