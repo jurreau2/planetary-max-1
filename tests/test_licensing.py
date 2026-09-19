@@ -4,7 +4,13 @@ import os
 import unittest
 from unittest.mock import patch
 
-from cognitive.licensing import export_governance_engine, export_identity_physics, resolve_license_tier
+from cognitive.licensing import (
+    export_apex_alignment,
+    export_governance_engine,
+    export_identity_physics,
+    export_sim_pack,
+    resolve_license_tier,
+)
 from identity.registry import IdentityRegistry
 
 
@@ -17,6 +23,12 @@ class LicensingSIMTest(unittest.TestCase):
 
     def governance_export(self, payload, tier: str):
         return export_governance_engine(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def apex_export(self, payload, tier: str):
+        return export_apex_alignment(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def sim_pack_export(self, payload, tier: str):
+        return export_sim_pack(payload, resolve_license_tier(self.identity(tier), payload))
 
     def test_identity_physics_export_is_deterministic_and_tier_filtered(self) -> None:
         payload = {"tier": "enterprise", "input": {"subject": "alpha", "coordinates": [1, 2, 3]}}
@@ -66,6 +78,41 @@ class LicensingSIMTest(unittest.TestCase):
             resolve_license_tier(self.identity("enterprise"), {})
         with self.assertRaises(ValueError):
             self.governance_export({"tier": "basic", "input": []}, "enterprise")
+
+    def test_apex_advisory_is_deterministic_and_tier_filtered(self) -> None:
+        payload = {"tier": "enterprise", "input": {"nodes": ["apex", "policy", "execution"]}}
+        first = self.apex_export(payload, "enterprise")
+        second = self.apex_export(payload, "enterprise")
+        self.assertEqual(first, second)
+        self.assertEqual(len(first["apexVector"]), 3)
+        self.assertGreaterEqual(first["alignmentScore"], 0.5)
+        self.assertLessEqual(first["alignmentScore"], 1)
+        self.assertIn("structuralAlignmentMap", first)
+        self.assertIn("collapseVectorRisk", first)
+
+        capped = self.apex_export(payload, "basic")
+        self.assertEqual(capped["tier"], "basic")
+        self.assertTrue(capped["tierCapped"])
+        self.assertNotIn("structuralAlignmentMap", capped)
+        self.assertNotIn("collapseVectorRisk", capped)
+
+    def test_sim_pack_composition_and_metadata_follow_effective_tier(self) -> None:
+        model_input = {"scenario": "baseline", "nodes": ["apex", "policy", "execution"]}
+        basic = self.sim_pack_export({"tier": "basic", "input": model_input}, "enterprise")
+        professional = self.sim_pack_export({"tier": "enterprise", "input": model_input}, "professional")
+        enterprise = self.sim_pack_export({"tier": "enterprise", "input": model_input}, "enterprise")
+        repeated = self.sim_pack_export({"tier": "enterprise", "input": model_input}, "enterprise")
+
+        self.assertEqual(basic["composition"], ["identitySim"])
+        self.assertEqual(professional["composition"], ["identitySim", "governanceSim", "apexSim"])
+        self.assertTrue(professional["tierCapped"])
+        self.assertNotIn("marketSim", professional["simulations"])
+        self.assertEqual(enterprise["composition"], ["identitySim", "governanceSim", "apexSim", "marketSim"])
+        self.assertEqual(enterprise, repeated)
+        self.assertEqual(enterprise["version"], "sim-pack-v1")
+        self.assertTrue(enterprise["deterministicSeed"].startswith("pack_v1_"))
+        self.assertGreaterEqual(enterprise["stability"]["score"], 0)
+        self.assertLessEqual(enterprise["stability"]["score"], 1)
 
     def test_environment_backed_identity_requires_explicit_tier_configuration(self) -> None:
         with patch.dict(os.environ, {"PORTAL_SERVICE_TOKEN": "service-token"}, clear=True):

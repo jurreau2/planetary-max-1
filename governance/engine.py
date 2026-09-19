@@ -11,11 +11,13 @@ class GovernanceEngine:
         "substrate.write", "governance.inspect", "universe.read",
         "universe.tick", "universe.start", "autonomy.read",
         "identity.physics.license", "governance.engine.license",
+        "apex.alignment.advisory", "umbrella.sim.pack",
     }
     _OBSERVER_ACTIONS = {
         "cognitive.process", "substrate.read", "governance.inspect",
         "universe.read", "autonomy.read", "identity.physics.license",
         "governance.engine.license",
+        "apex.alignment.advisory", "umbrella.sim.pack",
     }
 
     def authorize(self, identity: Identity, action: str, context: Optional[Mapping[str, Any]] = None) -> bool:

@@ -152,6 +152,50 @@ class Rebuild2IntegrationTest(unittest.TestCase):
         self.assertFalse(missing_tier["ok"])
         self.assertEqual(missing_tier["error"]["code"], "INVALID_MESSAGE")
 
+    def test_apex_advisory_and_sim_pack_are_tier_capped(self) -> None:
+        apex = self.kernel.handle_message(envelope(
+            "apex-advisory-1",
+            "apex.alignment.advisory",
+            {"tier": "enterprise", "input": {"nodes": ["apex", "policy"]}},
+            OBSERVER_TOKEN,
+        ))
+        self.assertTrue(apex["ok"], apex)
+        apex_data = apex["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(apex_data["tier"], "basic")
+        self.assertTrue(apex_data["tierCapped"])
+        self.assertIn("apexVector", apex_data)
+        self.assertIn("alignmentScore", apex_data)
+        self.assertNotIn("structuralAlignmentMap", apex_data)
+        self.assertNotIn("collapseVectorRisk", apex_data)
+
+        pack_request = {"tier": "enterprise", "input": {"scenario": "revenue-baseline"}}
+        first_pack = self.kernel.handle_message(envelope(
+            "sim-pack-1", "umbrella.sim.pack", pack_request, SERVICE_TOKEN,
+        ))
+        second_pack = self.kernel.handle_message(envelope(
+            "sim-pack-2", "umbrella.sim.pack", pack_request, SERVICE_TOKEN,
+        ))
+        self.assertTrue(first_pack["ok"], first_pack)
+        first_data = first_pack["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        second_data = second_pack["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(first_data, second_data)
+        self.assertEqual(first_data["tier"], "professional")
+        self.assertTrue(first_data["tierCapped"])
+        self.assertEqual(first_data["composition"], ["identitySim", "governanceSim", "apexSim"])
+        self.assertNotIn("marketSim", first_data["simulations"])
+
+        enterprise_pack = self.kernel.handle_message(envelope(
+            "sim-pack-3", "umbrella.sim.pack", pack_request, SYSTEM_TOKEN,
+        ))
+        enterprise_data = enterprise_pack["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertIn("marketSim", enterprise_data["simulations"])
+
+        unlicensed_pack = self.kernel.handle_message(envelope(
+            "sim-pack-4", "umbrella.sim.pack", {"tier": "basic"}, UNLICENSED_TOKEN,
+        ))
+        self.assertFalse(unlicensed_pack["ok"])
+        self.assertEqual(unlicensed_pack["error"]["code"], "FORBIDDEN")
+
     def test_sim_tec_substrate_flow_and_invariants(self) -> None:
         started = time.monotonic()
         response = self.kernel.handle_message(envelope(

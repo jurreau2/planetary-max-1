@@ -20,6 +20,18 @@ GOVERNANCE_ENGINE_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
     "enterprise": ("mode", "structure", "apexAlignment", "collapseVectors"),
 }
 
+APEX_ADVISORY_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("apexVector", "alignmentScore"),
+    "professional": ("apexVector", "alignmentScore", "structuralAlignmentMap"),
+    "enterprise": ("apexVector", "alignmentScore", "structuralAlignmentMap", "collapseVectorRisk"),
+}
+
+SIM_PACK_COMPOSITION: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("identitySim",),
+    "professional": ("identitySim", "governanceSim", "apexSim"),
+    "enterprise": ("identitySim", "governanceSim", "apexSim", "marketSim"),
+}
+
 
 @dataclass(frozen=True)
 class LicenseGrant:
@@ -107,15 +119,88 @@ def export_governance_engine(payload: Mapping[str, Any], grant: LicenseGrant) ->
     )
 
 
+def export_apex_alignment(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Export deterministic apex-alignment advice filtered by effective tier."""
+    model_input = _model_input(payload)
+    digest = _digest("apex-alignment", model_input)
+    apex_vector = _vector(digest, 0)
+    alignment_score = round(0.5 + int.from_bytes(digest[3:5], "big") / 131070, 6)
+    structure = _governance_structure(model_input)
+    structural_map = {
+        "apex": structure["apex"],
+        "nodes": [
+            {
+                "id": node,
+                "alignment": round(0.4 + digest[(8 + index) % len(digest)] / 425, 6),
+            }
+            for index, node in enumerate(structure["nodes"])
+        ],
+    }
+    collapse_vector = _vector(digest, 16)
+    collapse_risk = round(max(0.0, min(1.0, 1.0 - alignment_score * 0.75 + _magnitude(collapse_vector) * 0.25)), 6)
+    outputs: Dict[str, Any] = {
+        "apexVector": apex_vector,
+        "alignmentScore": alignment_score,
+        "structuralAlignmentMap": structural_map,
+        "collapseVectorRisk": {
+            "score": collapse_risk,
+            "classification": "high" if collapse_risk >= 0.65 else "moderate" if collapse_risk >= 0.35 else "low",
+            "vector": collapse_vector,
+        },
+    }
+    return _licensed_payload(
+        "apex-alignment-advisory",
+        grant,
+        APEX_ADVISORY_OUTPUTS[grant.effective],
+        outputs,
+    )
+
+
+def export_sim_pack(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Bundle deterministic SIM products according to the effective license tier."""
+    model_input = _model_input(payload)
+    digest = _digest(f"umbrella-sim-pack:{grant.effective}", model_input)
+    composition = SIM_PACK_COMPOSITION[grant.effective]
+    simulations: Dict[str, Any] = {}
+    if "identitySim" in composition:
+        simulations["identitySim"] = export_identity_physics(payload, grant)
+    if "governanceSim" in composition:
+        simulations["governanceSim"] = export_governance_engine(payload, grant)
+    if "apexSim" in composition:
+        simulations["apexSim"] = export_apex_alignment(payload, grant)
+    if "marketSim" in composition:
+        simulations["marketSim"] = _market_sim(model_input)
+
+    stability_score = round(0.55 + int.from_bytes(digest[:2], "big") / 145634, 6)
+    outputs: Dict[str, Any] = {
+        "version": "sim-pack-v1",
+        "composition": list(composition),
+        "stability": {
+            "score": stability_score,
+            "classification": "stable" if stability_score >= 0.8 else "balanced",
+        },
+        "deterministicSeed": f"pack_v1_{digest.hex()[:32]}",
+        "simulations": simulations,
+    }
+    return _licensed_payload(
+        "umbrella-sim-pack",
+        grant,
+        ("version", "composition", "stability", "deterministicSeed", "simulations"),
+        outputs,
+        export_mode="sim-pack",
+    )
+
+
 def _licensed_payload(
     product: str,
     grant: LicenseGrant,
     allowed_outputs: Sequence[str],
     outputs: Mapping[str, Any],
+    export_mode: str = "sim",
 ) -> Dict[str, Any]:
     response = {
         "product": product,
-        "exportMode": "sim",
+        "exportMode": export_mode,
         "tier": grant.effective,
         "requestedTier": grant.requested,
         "authorizedTier": grant.authorized,
@@ -147,6 +232,19 @@ def _digest(product: str, model_input: Mapping[str, Any]) -> bytes:
 
 def _vector(digest: bytes, offset: int) -> list[float]:
     return [round((digest[(offset + index) % len(digest)] - 127.5) / 127.5, 6) for index in range(3)]
+
+
+def _magnitude(vector: Sequence[float]) -> float:
+    return sum(abs(component) for component in vector) / len(vector)
+
+
+def _market_sim(model_input: Mapping[str, Any]) -> Dict[str, Any]:
+    digest = _digest("market-sim", model_input)
+    return {
+        "marketVector": _vector(digest, 0),
+        "demandIndex": round(int.from_bytes(digest[6:8], "big") / 65535, 6),
+        "resilienceScore": round(int.from_bytes(digest[10:12], "big") / 65535, 6),
+    }
 
 
 def _governance_structure(model_input: Mapping[str, Any]) -> Dict[str, Any]:

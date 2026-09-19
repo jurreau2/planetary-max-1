@@ -180,6 +180,29 @@ progressively licensed as mode and structure, apex alignment, and collapse
 vectors. Invalid or missing request tiers return `INVALID_MESSAGE`; missing
 bearer entitlements return `FORBIDDEN`.
 
+### Apex advisory and simulation packs
+
+Two additional Umbrella revenue products use the same bearer entitlement and
+normalized response contract:
+
+- `POST /umbrella/apex/advisory` routes to `apex.alignment.advisory` and
+  returns a deterministic apex vector and alignment score. Professional adds a
+  structural alignment map; enterprise adds collapse-vector risk.
+- `POST /umbrella/sim/pack` routes to `umbrella.sim.pack` and returns pack
+  version, composition, stability, deterministic seed, and SIM payloads.
+
+Both accept the same request shape:
+
+```json
+{"tier":"professional","input":{}}
+```
+
+The Worker forwards the bearer and requested `tier` unchanged. The kernel caps
+the tier before SIM export and reports the effective tier in normalized
+`{"ok":true,"data":{...},"meta":{...}}` responses. Basic packs contain the
+identity SIM; professional packs add governance and apex SIMs; enterprise
+packs add the market SIM.
+
 Set `MAXOS_MODULE` to the installed MAX-OS-1 Python module exporting
 `MaxOsUnifiedOrchestrator`. Without it, a deterministic in-memory universe is
 used for local development and integration tests.
