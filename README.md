@@ -151,11 +151,24 @@ The Worker exposes two kernel-authorized SIM product exports:
 - `POST /umbrella/identity/license` routes to `identity.physics.license`.
 - `POST /umbrella/governance/license` routes to `governance.engine.license`.
 
-Both accept an object shaped like
-`{"licenseTier":"professional","input":{...}}` and return the same
-`{ok,data,meta}` contract as the universe endpoints. The bearer identity's
-registry attribute `licenseTier` is authoritative; a caller may select that
-tier or a lower one but cannot escalate it. Set `PORTAL_SYSTEM_LICENSE_TIER`,
+Both require a `tier` with one of the values `basic`, `professional`, or
+`enterprise`, and may include an optional `input` object for the SIM model:
+
+```json
+{"tier":"professional","input":{}}
+```
+
+They return the same normalized contract as the universe endpoints:
+
+```json
+{"ok":true,"data":{"tier":"professional"},"meta":{"messageId":"...","type":"identity.physics.license","identity":{},"route":["orchestration"]}}
+```
+
+The bearer identity's registry attribute `licenseTier` is authoritative. The
+Worker forwards `tier` unchanged, and the kernel caps it to the authorized
+tier before the SIM export filters fields. Response data includes `tier`,
+`requestedTier`, `authorizedTier`, and `tierCapped` for client messaging. Set
+`PORTAL_SYSTEM_LICENSE_TIER`,
 `PORTAL_SERVICE_LICENSE_TIER`, or `PORTAL_OBSERVER_LICENSE_TIER` alongside the
 corresponding token to grant a built-in environment-backed identity a tier.
 Supported values are `basic`, `professional`, and `enterprise`; identities
@@ -164,8 +177,8 @@ without an explicit valid tier cannot use licensing exports.
 Identity Physics outputs are progressively licensed as identity signature,
 stability metrics, and curvature vectors. Governance Engine outputs are
 progressively licensed as mode and structure, apex alignment, and collapse
-vectors. Invalid tiers return `INVALID_MESSAGE`; missing entitlements and tier
-escalation return `FORBIDDEN`.
+vectors. Invalid or missing request tiers return `INVALID_MESSAGE`; missing
+bearer entitlements return `FORBIDDEN`.
 
 Set `MAXOS_MODULE` to the installed MAX-OS-1 Python module exporting
 `MaxOsUnifiedOrchestrator`. Without it, a deterministic in-memory universe is

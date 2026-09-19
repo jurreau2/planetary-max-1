@@ -132,28 +132,49 @@ describe('normalized Worker integration routes', () => {
     });
   });
 
-  it('preserves kernel-owned license tier denials', async () => {
+  it('forwards an over-tier request unchanged and normalizes the kernel cap', async () => {
     const response = await app.request('/umbrella/identity/license', {
       method: 'POST',
       headers: {
         Authorization: 'Bearer basic-license-token',
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ licenseTier: 'enterprise', input: { subject: 'alpha' } }),
+      body: JSON.stringify({ tier: 'enterprise', input: { subject: 'alpha' } }),
     }, bindings((envelope) => {
       expect(envelope.identity).toBe('basic-license-token');
-      expect(envelope.payload).toEqual({ licenseTier: 'enterprise', input: { subject: 'alpha' } });
+      expect(envelope.payload).toEqual({ tier: 'enterprise', input: { subject: 'alpha' } });
       return Response.json({
-        ok: false,
+        ok: true,
         messageId: envelope.id,
-        error: { code: 'FORBIDDEN', message: 'requested license tier exceeds bearer entitlement' },
-      }, { status: 403 });
+        type: envelope.type,
+        identity: { id: 'licensed-observer', roles: ['observer'] },
+        route: ['orchestration'],
+        result: {
+          lanes: [{
+            result: {
+              results: [{ result: { data: {
+                tier: 'basic',
+                requestedTier: 'enterprise',
+                authorizedTier: 'basic',
+                tierCapped: true,
+                identitySignature: 'idp_v1_example',
+              } } }],
+            },
+          }],
+        },
+      });
     }));
 
-    expect(response.status).toBe(403);
+    expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({
-      ok: false,
-      error: { code: 'FORBIDDEN' },
+      ok: true,
+      data: {
+        tier: 'basic',
+        requestedTier: 'enterprise',
+        authorizedTier: 'basic',
+        tierCapped: true,
+      },
+      meta: { type: 'identity.physics.license', route: ['orchestration'] },
     });
   });
 

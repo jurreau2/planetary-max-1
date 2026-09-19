@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+from dataclasses import dataclass
 from typing import Any, Dict, Mapping, Sequence, Tuple
 
 
@@ -20,24 +21,33 @@ GOVERNANCE_ENGINE_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
 }
 
 
-def resolve_license_tier(identity: Mapping[str, Any], payload: Mapping[str, Any]) -> str:
-    """Resolve a requested tier without allowing it to exceed bearer entitlement."""
+@dataclass(frozen=True)
+class LicenseGrant:
+    requested: str
+    authorized: str
+    effective: str
+
+    @property
+    def capped(self) -> bool:
+        return self.requested != self.effective
+
+
+def resolve_license_tier(identity: Mapping[str, Any], payload: Mapping[str, Any]) -> LicenseGrant:
+    """Cap the requested tier to the bearer identity's explicit entitlement."""
     attributes = identity.get("attributes")
     assigned = attributes.get("licenseTier") if isinstance(attributes, Mapping) else None
     if not isinstance(assigned, str) or assigned not in LICENSE_TIERS:
         raise PermissionError("bearer identity has no valid license tier")
 
-    requested = payload.get("licenseTier", assigned)
+    requested = payload.get("tier")
     if not isinstance(requested, str) or requested not in LICENSE_TIERS:
-        raise ValueError(f"licenseTier must be one of: {', '.join(LICENSE_TIERS)}")
-    if LICENSE_TIERS.index(requested) > LICENSE_TIERS.index(assigned):
-        raise PermissionError(f"requested license tier {requested} exceeds bearer entitlement {assigned}")
-    return requested
+        raise ValueError(f"tier must be one of: {', '.join(LICENSE_TIERS)}")
+    effective = LICENSE_TIERS[min(LICENSE_TIERS.index(requested), LICENSE_TIERS.index(assigned))]
+    return LicenseGrant(requested=requested, authorized=assigned, effective=effective)
 
 
-def export_identity_physics(payload: Mapping[str, Any], identity: Mapping[str, Any]) -> Dict[str, Any]:
+def export_identity_physics(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
     """Export identity-physics SIM outputs allowed by the resolved license tier."""
-    tier = resolve_license_tier(identity, payload)
     model_input = _model_input(payload)
     digest = _digest("identity-physics", model_input)
     curvature = {
@@ -59,12 +69,16 @@ def export_identity_physics(payload: Mapping[str, Any], identity: Mapping[str, A
         },
         "curvatureVectors": curvature,
     }
-    return _licensed_payload("identity-physics", tier, IDENTITY_PHYSICS_OUTPUTS[tier], outputs)
+    return _licensed_payload(
+        "identity-physics",
+        grant,
+        IDENTITY_PHYSICS_OUTPUTS[grant.effective],
+        outputs,
+    )
 
 
-def export_governance_engine(payload: Mapping[str, Any], identity: Mapping[str, Any]) -> Dict[str, Any]:
+def export_governance_engine(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
     """Export governance-structure SIM outputs allowed by the resolved license tier."""
-    tier = resolve_license_tier(identity, payload)
     model_input = _model_input(payload)
     digest = _digest("governance-engine", model_input)
     mode = model_input.get("mode", "umbrella")
@@ -85,19 +99,27 @@ def export_governance_engine(payload: Mapping[str, Any], identity: Mapping[str, 
             "resilience": _vector(digest, 14),
         },
     }
-    return _licensed_payload("governance-engine", tier, GOVERNANCE_ENGINE_OUTPUTS[tier], outputs)
+    return _licensed_payload(
+        "governance-engine",
+        grant,
+        GOVERNANCE_ENGINE_OUTPUTS[grant.effective],
+        outputs,
+    )
 
 
 def _licensed_payload(
     product: str,
-    tier: str,
+    grant: LicenseGrant,
     allowed_outputs: Sequence[str],
     outputs: Mapping[str, Any],
 ) -> Dict[str, Any]:
     response = {
         "product": product,
         "exportMode": "sim",
-        "licenseTier": tier,
+        "tier": grant.effective,
+        "requestedTier": grant.requested,
+        "authorizedTier": grant.authorized,
+        "tierCapped": grant.capped,
         "allowedOutputs": list(allowed_outputs),
     }
     response.update({name: outputs[name] for name in allowed_outputs})
@@ -110,7 +132,7 @@ def _model_input(payload: Mapping[str, Any]) -> Dict[str, Any]:
         if not isinstance(model_input, Mapping):
             raise ValueError("license input must be an object")
         return dict(model_input)
-    return {str(key): value for key, value in payload.items() if key != "licenseTier"}
+    return {str(key): value for key, value in payload.items() if key != "tier"}
 
 
 def _digest(product: str, model_input: Mapping[str, Any]) -> bytes:

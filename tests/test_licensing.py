@@ -4,7 +4,7 @@ import os
 import unittest
 from unittest.mock import patch
 
-from cognitive.licensing import export_governance_engine, export_identity_physics
+from cognitive.licensing import export_governance_engine, export_identity_physics, resolve_license_tier
 from identity.registry import IdentityRegistry
 
 
@@ -12,10 +12,16 @@ class LicensingSIMTest(unittest.TestCase):
     def identity(self, tier: str):
         return {"id": "licensed-identity", "attributes": {"licenseTier": tier}}
 
+    def identity_export(self, payload, tier: str):
+        return export_identity_physics(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def governance_export(self, payload, tier: str):
+        return export_governance_engine(payload, resolve_license_tier(self.identity(tier), payload))
+
     def test_identity_physics_export_is_deterministic_and_tier_filtered(self) -> None:
-        payload = {"licenseTier": "enterprise", "input": {"subject": "alpha", "coordinates": [1, 2, 3]}}
-        first = export_identity_physics(payload, self.identity("enterprise"))
-        second = export_identity_physics(payload, self.identity("enterprise"))
+        payload = {"tier": "enterprise", "input": {"subject": "alpha", "coordinates": [1, 2, 3]}}
+        first = self.identity_export(payload, "enterprise")
+        second = self.identity_export(payload, "enterprise")
 
         self.assertEqual(first, second)
         self.assertEqual(first["exportMode"], "sim")
@@ -24,17 +30,19 @@ class LicensingSIMTest(unittest.TestCase):
         self.assertGreaterEqual(first["stabilityMetrics"]["score"], 0)
         self.assertLessEqual(first["stabilityMetrics"]["score"], 1)
 
-        basic = export_identity_physics({"licenseTier": "basic", "input": payload["input"]}, self.identity("enterprise"))
+        basic = self.identity_export({"tier": "basic", "input": payload["input"]}, "enterprise")
         self.assertEqual(basic["allowedOutputs"], ["identitySignature"])
+        self.assertEqual(basic["tier"], "basic")
+        self.assertFalse(basic["tierCapped"])
         self.assertNotIn("stabilityMetrics", basic)
         self.assertNotIn("curvatureVectors", basic)
 
     def test_governance_export_models_structure_and_apex_alignment(self) -> None:
         payload = {
-            "licenseTier": "enterprise",
+            "tier": "enterprise",
             "input": {"mode": "federated", "nodes": ["execution", "apex", "policy", "policy"]},
         }
-        export = export_governance_engine(payload, self.identity("enterprise"))
+        export = self.governance_export(payload, "enterprise")
 
         self.assertEqual(export["mode"], "federated")
         self.assertEqual(export["structure"]["nodes"], ["apex", "execution", "policy"])
@@ -43,15 +51,21 @@ class LicensingSIMTest(unittest.TestCase):
         self.assertLessEqual(export["apexAlignment"]["score"], 1)
         self.assertEqual(set(export["collapseVectors"]), {"authority", "coordination", "resilience"})
 
-    def test_tier_escalation_and_invalid_inputs_are_rejected(self) -> None:
+    def test_requested_tier_is_capped_and_invalid_inputs_are_rejected(self) -> None:
+        capped = self.identity_export({"tier": "enterprise"}, "professional")
+        self.assertEqual(capped["tier"], "professional")
+        self.assertEqual(capped["requestedTier"], "enterprise")
+        self.assertEqual(capped["authorizedTier"], "professional")
+        self.assertTrue(capped["tierCapped"])
+        self.assertNotIn("curvatureVectors", capped)
         with self.assertRaises(PermissionError):
-            export_identity_physics({"licenseTier": "enterprise"}, self.identity("professional"))
-        with self.assertRaises(PermissionError):
-            export_governance_engine({"licenseTier": "basic"}, {"attributes": {}})
+            resolve_license_tier({"attributes": {}}, {"tier": "basic"})
         with self.assertRaises(ValueError):
-            export_governance_engine({"licenseTier": "unknown"}, self.identity("enterprise"))
+            resolve_license_tier(self.identity("enterprise"), {"tier": "unknown"})
         with self.assertRaises(ValueError):
-            export_governance_engine({"licenseTier": "basic", "input": []}, self.identity("enterprise"))
+            resolve_license_tier(self.identity("enterprise"), {})
+        with self.assertRaises(ValueError):
+            self.governance_export({"tier": "basic", "input": []}, "enterprise")
 
     def test_environment_backed_identity_requires_explicit_tier_configuration(self) -> None:
         with patch.dict(os.environ, {"PORTAL_SERVICE_TOKEN": "service-token"}, clear=True):

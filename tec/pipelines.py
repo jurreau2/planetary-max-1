@@ -3,7 +3,7 @@
 import time
 from typing import Any, Callable, Dict, Mapping, Optional
 
-from cognitive.licensing import export_governance_engine, export_identity_physics
+from cognitive.licensing import export_governance_engine, export_identity_physics, resolve_license_tier
 from maxos_bridge import get_umbrella_status, get_universe_state, start_universe, tick_universe
 from tec.surfaces import SubstrateSurface
 
@@ -62,12 +62,13 @@ class TECPipeline:
                 raise ValueError("license payload must be an object")
             if not isinstance(identity, Mapping):
                 raise PermissionError("licensed exports require a validated identity")
+            grant = resolve_license_tier(identity, payload)
             export = export_identity_physics if operation == "identity.physics.license" else export_governance_engine
             return {
                 "ok": True,
                 "operation": operation,
                 "backend": "kernel-sim",
-                "data": export(payload, identity),
+                "data": export(payload, grant),
             }
         if operation == "universe.start":
             return start_universe()

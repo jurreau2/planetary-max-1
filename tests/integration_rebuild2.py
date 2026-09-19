@@ -84,14 +84,15 @@ class Rebuild2IntegrationTest(unittest.TestCase):
         self.assertIn("orchestration", data["lanes"])
 
     def test_identity_physics_license_tiers_filter_deterministic_sim_exports(self) -> None:
-        request = {"licenseTier": "professional", "input": {"subject": "planetary-operator", "epoch": 7}}
+        request = {"tier": "professional", "input": {"subject": "planetary-operator", "epoch": 7}}
         first = self.kernel.handle_message(envelope("identity-license-1", "identity.physics.license", request))
         second = self.kernel.handle_message(envelope("identity-license-2", "identity.physics.license", request))
         self.assertTrue(first["ok"], first)
         first_data = first["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
         second_data = second["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
         self.assertEqual(first_data, second_data)
-        self.assertEqual(first_data["licenseTier"], "professional")
+        self.assertEqual(first_data["tier"], "professional")
+        self.assertFalse(first_data["tierCapped"])
         self.assertIn("identitySignature", first_data)
         self.assertIn("stabilityMetrics", first_data)
         self.assertNotIn("curvatureVectors", first_data)
@@ -99,17 +100,17 @@ class Rebuild2IntegrationTest(unittest.TestCase):
         enterprise = self.kernel.handle_message(envelope(
             "identity-license-3",
             "identity.physics.license",
-            {"licenseTier": "enterprise", "input": {"subject": "planetary-admin"}},
+            {"tier": "enterprise", "input": {"subject": "planetary-admin"}},
             SYSTEM_TOKEN,
         ))
         enterprise_data = enterprise["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
         self.assertIn("curvatureVectors", enterprise_data)
 
-    def test_governance_engine_license_tiers_and_denials(self) -> None:
+    def test_governance_engine_license_tiers_and_capping(self) -> None:
         basic = self.kernel.handle_message(envelope(
             "governance-license-1",
             "governance.engine.license",
-            {"licenseTier": "basic", "input": {"mode": "federated", "nodes": ["policy", "apex"]}},
+            {"tier": "basic", "input": {"mode": "federated", "nodes": ["policy", "apex"]}},
             OBSERVER_TOKEN,
         ))
         self.assertTrue(basic["ok"], basic)
@@ -119,23 +120,37 @@ class Rebuild2IntegrationTest(unittest.TestCase):
         self.assertNotIn("apexAlignment", data)
         self.assertNotIn("collapseVectors", data)
 
-        above_entitlement = self.kernel.handle_message(envelope(
+        capped = self.kernel.handle_message(envelope(
             "governance-license-2",
             "governance.engine.license",
-            {"licenseTier": "enterprise", "input": {}},
+            {"tier": "enterprise", "input": {}},
             OBSERVER_TOKEN,
         ))
-        self.assertFalse(above_entitlement["ok"])
-        self.assertEqual(above_entitlement["error"]["code"], "FORBIDDEN")
+        self.assertTrue(capped["ok"], capped)
+        capped_data = capped["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(capped_data["tier"], "basic")
+        self.assertEqual(capped_data["requestedTier"], "enterprise")
+        self.assertTrue(capped_data["tierCapped"])
+        self.assertNotIn("apexAlignment", capped_data)
+        self.assertNotIn("collapseVectors", capped_data)
 
         unlicensed = self.kernel.handle_message(envelope(
             "governance-license-3",
             "governance.engine.license",
-            {"licenseTier": "basic", "input": {}},
+            {"tier": "basic", "input": {}},
             UNLICENSED_TOKEN,
         ))
         self.assertFalse(unlicensed["ok"])
         self.assertEqual(unlicensed["error"]["code"], "FORBIDDEN")
+
+        missing_tier = self.kernel.handle_message(envelope(
+            "governance-license-4",
+            "governance.engine.license",
+            {"input": {}},
+            SYSTEM_TOKEN,
+        ))
+        self.assertFalse(missing_tier["ok"])
+        self.assertEqual(missing_tier["error"]["code"], "INVALID_MESSAGE")
 
     def test_sim_tec_substrate_flow_and_invariants(self) -> None:
         started = time.monotonic()
