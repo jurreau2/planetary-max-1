@@ -10,8 +10,13 @@ class GovernanceEngine:
         "cognitive.process", "orchestration.execute", "substrate.read",
         "substrate.write", "governance.inspect", "universe.read",
         "universe.tick", "universe.start", "autonomy.read",
+        "identity.physics.license", "governance.engine.license",
     }
-    _OBSERVER_ACTIONS = {"cognitive.process", "substrate.read", "governance.inspect", "universe.read", "autonomy.read"}
+    _OBSERVER_ACTIONS = {
+        "cognitive.process", "substrate.read", "governance.inspect",
+        "universe.read", "autonomy.read", "identity.physics.license",
+        "governance.engine.license",
+    }
 
     def authorize(self, identity: Identity, action: str, context: Optional[Mapping[str, Any]] = None) -> bool:
         governance_context = context or {}

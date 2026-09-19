@@ -73,6 +73,18 @@ app.post('/api/kernel/message', async (c) => {
 app.get('/api/autonomy', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'autonomy.state', {}));
 app.get('/universe/state', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'universe.state', {}));
 app.get('/universe/umbrella', async (c) => normalizedRequest(c.env, c.req.header('Authorization'), 'universe.umbrella', {}));
+app.post('/umbrella/identity/license', async (c) => licensedRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'identity.physics.license',
+));
+app.post('/umbrella/governance/license', async (c) => licensedRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'governance.engine.license',
+));
 app.post('/universe/tick', async (c) => {
   let payload: Record<string, unknown> = {};
   const contentType = c.req.header('Content-Type') ?? '';
@@ -101,6 +113,32 @@ async function normalizedRequest(
   return kernelResponse(env, createEnvelope(type, payload, identity, { surface: 'worker-api' }), true);
 }
 
+async function licensedRequest(
+  env: Bindings,
+  authorization: string | undefined,
+  request: Request,
+  type: 'identity.physics.license' | 'governance.engine.license',
+): Promise<Response> {
+  const identity = bearerToken(authorization);
+  if (!identity) {
+    return Response.json({ ok: false, error: { code: 'UNAUTHENTICATED', message: 'Bearer token required' } }, { status: 401 });
+  }
+  let payload: unknown;
+  try {
+    payload = await request.json();
+  } catch {
+    return Response.json({ ok: false, error: { code: 'INVALID_JSON', message: 'License payload must be JSON' } }, { status: 400 });
+  }
+  if (!isRecord(payload)) {
+    return Response.json({ ok: false, error: { code: 'INVALID_JSON', message: 'License payload must be an object' } }, { status: 400 });
+  }
+  return kernelResponse(
+    env,
+    createEnvelope(type, payload, identity, { surface: 'worker-umbrella' }),
+    true,
+  );
+}
+
 function createEnvelope(
   type: string,
   payload: Record<string, unknown>,
@@ -116,7 +154,7 @@ async function kernelResponse(env: Bindings, envelope: KernelEnvelope, normalize
     const result = await response.json<KernelResult>();
     const status = result.ok === false ? kernelErrorStatus(result.error?.code) : response.status;
     if (result.ok === false || !normalize) return Response.json(result, { status });
-    return Response.json(normalizeKernelResult(result, envelope), { status });
+    return Response.json(normalizeResponse(result, envelope), { status });
   } catch (error) {
     console.error('Worker to kernel bridge failed', error);
     return Response.json(
@@ -126,7 +164,7 @@ async function kernelResponse(env: Bindings, envelope: KernelEnvelope, normalize
   }
 }
 
-function normalizeKernelResult(result: KernelResult, envelope: KernelEnvelope): Record<string, unknown> {
+function normalizeResponse(result: KernelResult, envelope: KernelEnvelope): Record<string, unknown> {
   return {
     ok: true,
     data: extractLaneData(result),
@@ -179,5 +217,5 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-export { app, createEnvelope, extractLaneData };
+export { app, createEnvelope, extractLaneData, normalizeResponse };
 export default app;

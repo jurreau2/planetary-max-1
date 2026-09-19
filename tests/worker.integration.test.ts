@@ -50,6 +50,8 @@ describe('normalized Worker integration routes', () => {
     ['GET', '/universe/state', 'universe.state'],
     ['GET', '/universe/umbrella', 'universe.umbrella'],
     ['POST', '/universe/tick', 'universe.tick'],
+    ['POST', '/umbrella/identity/license', 'identity.physics.license'],
+    ['POST', '/umbrella/governance/license', 'governance.engine.license'],
   ])('normalizes %s %s lane data', async (method, path, type) => {
     let forwarded: KernelEnvelope | undefined;
     const response = await app.request(path, {
@@ -127,6 +129,74 @@ describe('normalized Worker integration routes', () => {
     expect(await response.json()).toMatchObject({
       ok: false,
       error: { code: 'FORBIDDEN', message: 'not authorized for universe.tick' },
+    });
+  });
+
+  it('forwards an over-tier request unchanged and normalizes the kernel cap', async () => {
+    const response = await app.request('/umbrella/identity/license', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer basic-license-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tier: 'enterprise', input: { subject: 'alpha' } }),
+    }, bindings((envelope) => {
+      expect(envelope.identity).toBe('basic-license-token');
+      expect(envelope.payload).toEqual({ tier: 'enterprise', input: { subject: 'alpha' } });
+      return Response.json({
+        ok: true,
+        messageId: envelope.id,
+        type: envelope.type,
+        identity: { id: 'licensed-observer', roles: ['observer'] },
+        route: ['orchestration'],
+        result: {
+          lanes: [{
+            result: {
+              results: [{ result: { data: {
+                tier: 'basic',
+                requestedTier: 'enterprise',
+                authorizedTier: 'basic',
+                tierCapped: true,
+                identitySignature: 'idp_v1_example',
+              } } }],
+            },
+          }],
+        },
+      });
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      data: {
+        tier: 'basic',
+        requestedTier: 'enterprise',
+        authorizedTier: 'basic',
+        tierCapped: true,
+      },
+      meta: { type: 'identity.physics.license', route: ['orchestration'] },
+    });
+  });
+
+  it('rejects malformed license payloads before calling the kernel', async () => {
+    let called = false;
+    const response = await app.request('/umbrella/governance/license', {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer professional-license-token',
+        'Content-Type': 'application/json',
+      },
+      body: '[]',
+    }, bindings(() => {
+      called = true;
+      return Response.json({ ok: true });
+    }));
+
+    expect(response.status).toBe(400);
+    expect(called).toBe(false);
+    expect(await response.json()).toEqual({
+      ok: false,
+      error: { code: 'INVALID_JSON', message: 'License payload must be an object' },
     });
   });
 });
