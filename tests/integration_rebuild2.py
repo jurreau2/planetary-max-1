@@ -240,6 +240,49 @@ class Rebuild2IntegrationTest(unittest.TestCase):
         enterprise_mirror_data = enterprise_mirror["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
         self.assertIn("quantumBranchPreview", enterprise_mirror_data)
 
+    def test_crossworld_access_and_structural_truth_are_tier_capped(self) -> None:
+        crossworld_request = {
+            "tier": "enterprise",
+            "input": {"worlds": ["baseline", "adjacent", "frontier"]},
+        }
+        first_crossworld = self.kernel.handle_message(envelope(
+            "crossworld-1", "umbrella.crossworld.access", crossworld_request, SERVICE_TOKEN,
+        ))
+        second_crossworld = self.kernel.handle_message(envelope(
+            "crossworld-2", "umbrella.crossworld.access", crossworld_request, SERVICE_TOKEN,
+        ))
+        self.assertTrue(first_crossworld["ok"], first_crossworld)
+        first_data = first_crossworld["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        second_data = second_crossworld["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(first_data, second_data)
+        self.assertEqual(first_data["tier"], "professional")
+        self.assertTrue(first_data["tierCapped"])
+        self.assertIn("stabilityBand", first_data)
+        self.assertNotIn("accessEnvelope", first_data)
+
+        structural_request = {
+            "tier": "enterprise",
+            "input": {"facets": ["identity", "behavior", "structure"]},
+        }
+        basic_structural = self.kernel.handle_message(envelope(
+            "structural-truth-1", "umbrella.structural.truth.license", structural_request, OBSERVER_TOKEN,
+        ))
+        self.assertTrue(basic_structural["ok"], basic_structural)
+        structural_data = basic_structural["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(structural_data["tier"], "basic")
+        self.assertTrue(structural_data["tierCapped"])
+        self.assertIn("structuralTruthMap", structural_data)
+        self.assertIn("curvatureGraph", structural_data)
+        self.assertNotIn("integrityScore", structural_data)
+        self.assertNotIn("collapseVectorSensitivity", structural_data)
+
+        enterprise_structural = self.kernel.handle_message(envelope(
+            "structural-truth-2", "umbrella.structural.truth.license", structural_request, SYSTEM_TOKEN,
+        ))
+        enterprise_data = enterprise_structural["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertIn("integrityScore", enterprise_data)
+        self.assertIn("collapseVectorSensitivity", enterprise_data)
+
     def test_sim_tec_substrate_flow_and_invariants(self) -> None:
         started = time.monotonic()
         response = self.kernel.handle_message(envelope(

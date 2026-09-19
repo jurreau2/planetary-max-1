@@ -6,11 +6,13 @@ from unittest.mock import patch
 
 from cognitive.licensing import (
     export_apex_alignment,
+    export_crossworld_access,
     export_governance_engine,
     export_identity_mirror,
     export_identity_physics,
     export_market_forecast,
     export_sim_pack,
+    export_structural_truth,
     resolve_license_tier,
 )
 from identity.registry import IdentityRegistry
@@ -37,6 +39,12 @@ class LicensingSIMTest(unittest.TestCase):
 
     def identity_mirror_export(self, payload, tier: str):
         return export_identity_mirror(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def crossworld_access_export(self, payload, tier: str):
+        return export_crossworld_access(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def structural_truth_export(self, payload, tier: str):
+        return export_structural_truth(payload, resolve_license_tier(self.identity(tier), payload))
 
     def test_identity_physics_export_is_deterministic_and_tier_filtered(self) -> None:
         payload = {"tier": "enterprise", "input": {"subject": "alpha", "coordinates": [1, 2, 3]}}
@@ -159,6 +167,55 @@ class LicensingSIMTest(unittest.TestCase):
 
         basic = self.identity_mirror_export({"tier": "basic", "input": payload["input"]}, "enterprise")
         self.assertEqual(basic["allowedOutputs"], ["identitySignature"])
+
+    def test_crossworld_access_is_deterministic_and_tier_filtered(self) -> None:
+        payload = {"tier": "enterprise", "input": {"worlds": ["frontier", "baseline", "adjacent"]}}
+        enterprise = self.crossworld_access_export(payload, "enterprise")
+        repeated = self.crossworld_access_export(payload, "enterprise")
+        self.assertEqual(enterprise, repeated)
+        self.assertEqual(enterprise["exportMode"], "crossworld-access")
+        self.assertEqual(
+            [world["world"] for world in enterprise["crossWorldIdentityMap"]["worlds"]],
+            ["adjacent", "baseline", "frontier"],
+        )
+        self.assertEqual(len(enterprise["worldVectorSet"]), 3)
+        self.assertLessEqual(enterprise["stabilityBand"]["low"], enterprise["stabilityBand"]["mid"])
+        self.assertLessEqual(enterprise["stabilityBand"]["mid"], enterprise["stabilityBand"]["high"])
+        self.assertEqual(enterprise["accessEnvelope"]["worldCount"], 3)
+
+        professional = self.crossworld_access_export(payload, "professional")
+        self.assertEqual(professional["tier"], "professional")
+        self.assertTrue(professional["tierCapped"])
+        self.assertIn("stabilityBand", professional)
+        self.assertNotIn("accessEnvelope", professional)
+
+        basic = self.crossworld_access_export(payload, "basic")
+        self.assertEqual(basic["allowedOutputs"], ["crossWorldIdentityMap", "worldVectorSet"])
+        self.assertNotIn("stabilityBand", basic)
+        self.assertNotIn("accessEnvelope", basic)
+
+    def test_structural_truth_is_deterministic_and_tier_filtered(self) -> None:
+        payload = {"tier": "enterprise", "input": {"facets": ["structure", "identity", "behavior"]}}
+        enterprise = self.structural_truth_export(payload, "enterprise")
+        repeated = self.structural_truth_export(payload, "enterprise")
+        self.assertEqual(enterprise, repeated)
+        self.assertEqual(enterprise["exportMode"], "structural-truth")
+        self.assertEqual(len(enterprise["structuralTruthMap"]["facets"]), 3)
+        self.assertEqual(len(enterprise["curvatureGraph"]["nodes"]), 3)
+        self.assertGreaterEqual(enterprise["integrityScore"], 0)
+        self.assertLessEqual(enterprise["integrityScore"], 1)
+        self.assertEqual(len(enterprise["collapseVectorSensitivity"]["vector"]), 3)
+
+        professional = self.structural_truth_export(payload, "professional")
+        self.assertEqual(professional["tier"], "professional")
+        self.assertTrue(professional["tierCapped"])
+        self.assertIn("integrityScore", professional)
+        self.assertNotIn("collapseVectorSensitivity", professional)
+
+        basic = self.structural_truth_export(payload, "basic")
+        self.assertEqual(basic["allowedOutputs"], ["structuralTruthMap", "curvatureGraph"])
+        self.assertNotIn("integrityScore", basic)
+        self.assertNotIn("collapseVectorSensitivity", basic)
 
     def test_environment_backed_identity_requires_explicit_tier_configuration(self) -> None:
         with patch.dict(os.environ, {"PORTAL_SERVICE_TOKEN": "service-token"}, clear=True):

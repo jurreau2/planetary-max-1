@@ -44,6 +44,18 @@ IDENTITY_MIRROR_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
     "enterprise": ("identitySignature", "behavioralProjection", "structuralTruthMap", "quantumBranchPreview"),
 }
 
+CROSSWORLD_ACCESS_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("crossWorldIdentityMap", "worldVectorSet"),
+    "professional": ("crossWorldIdentityMap", "worldVectorSet", "stabilityBand"),
+    "enterprise": ("crossWorldIdentityMap", "worldVectorSet", "stabilityBand", "accessEnvelope"),
+}
+
+STRUCTURAL_TRUTH_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("structuralTruthMap", "curvatureGraph"),
+    "professional": ("structuralTruthMap", "curvatureGraph", "integrityScore"),
+    "enterprise": ("structuralTruthMap", "curvatureGraph", "integrityScore", "collapseVectorSensitivity"),
+}
+
 
 @dataclass(frozen=True)
 class LicenseGrant:
@@ -271,6 +283,99 @@ def export_identity_mirror(payload: Mapping[str, Any], grant: LicenseGrant) -> D
     )
 
 
+def export_crossworld_access(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Export deterministic cross-world identity access filtered by effective tier."""
+    model_input = _model_input(payload)
+    digest = _digest("umbrella-crossworld-access", model_input)
+    worlds = _world_names(model_input)
+    identity_map = []
+    vector_set = []
+    continuity_scores = []
+    for index, world in enumerate(worlds):
+        world_digest = _digest(f"crossworld:{world}", model_input)
+        continuity = round(0.5 + world_digest[index % len(world_digest)] / 510, 6)
+        continuity_scores.append(continuity)
+        identity_map.append({
+            "world": world,
+            "identitySignature": f"xwid_v1_{world_digest.hex()[:24]}",
+            "continuityScore": continuity,
+        })
+        vector_set.append({"world": world, "vector": _vector(world_digest, index * 3)})
+
+    stability_mid = round(sum(continuity_scores) / len(continuity_scores), 6)
+    aggregate_vector = _vector(digest, 16)
+    outputs: Dict[str, Any] = {
+        "crossWorldIdentityMap": {
+            "anchorSignature": f"xwa_v1_{digest.hex()[:32]}",
+            "worlds": identity_map,
+        },
+        "worldVectorSet": vector_set,
+        "stabilityBand": {
+            "low": min(continuity_scores),
+            "mid": stability_mid,
+            "high": max(continuity_scores),
+            "classification": "stable" if stability_mid >= 0.8 else "balanced" if stability_mid >= 0.65 else "variable",
+        },
+        "accessEnvelope": {
+            "reachableWorlds": worlds,
+            "worldCount": len(worlds),
+            "continuityThreshold": min(continuity_scores),
+            "aggregateVector": aggregate_vector,
+            "radius": round(_magnitude(aggregate_vector), 6),
+        },
+    }
+    return _licensed_payload(
+        "umbrella-crossworld-access",
+        grant,
+        CROSSWORLD_ACCESS_OUTPUTS[grant.effective],
+        outputs,
+        export_mode="crossworld-access",
+    )
+
+
+def export_structural_truth(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Export deterministic structural-truth analysis filtered by effective tier."""
+    model_input = _model_input(payload)
+    digest = _digest("umbrella-structural-truth", model_input)
+    truth_map = _structural_truth_map(model_input, digest)
+    facets = [facet["name"] for facet in truth_map["facets"]]
+    graph_nodes = [
+        {"id": facet, "curvature": _vector(digest, index * 4)}
+        for index, facet in enumerate(facets)
+    ]
+    graph_edges = [
+        {
+            "source": facets[index],
+            "target": facets[index + 1],
+            "tension": round(digest[(12 + index) % len(digest)] / 255, 6),
+        }
+        for index in range(len(facets) - 1)
+    ]
+    integrity_score = round(
+        sum(facet["truthScore"] for facet in truth_map["facets"]) / len(truth_map["facets"]),
+        6,
+    )
+    collapse_vector = _vector(digest, 20)
+    sensitivity_score = round(max(0.0, min(1.0, (1.0 - integrity_score) * 0.7 + _magnitude(collapse_vector) * 0.3)), 6)
+    outputs: Dict[str, Any] = {
+        "structuralTruthMap": truth_map,
+        "curvatureGraph": {"nodes": graph_nodes, "edges": graph_edges},
+        "integrityScore": integrity_score,
+        "collapseVectorSensitivity": {
+            "score": sensitivity_score,
+            "classification": "high" if sensitivity_score >= 0.65 else "moderate" if sensitivity_score >= 0.35 else "low",
+            "vector": collapse_vector,
+        },
+    }
+    return _licensed_payload(
+        "umbrella-structural-truth",
+        grant,
+        STRUCTURAL_TRUTH_OUTPUTS[grant.effective],
+        outputs,
+        export_mode="structural-truth",
+    )
+
+
 def _licensed_payload(
     product: str,
     grant: LicenseGrant,
@@ -325,6 +430,18 @@ def _market_sim(model_input: Mapping[str, Any]) -> Dict[str, Any]:
         "demandIndex": round(int.from_bytes(digest[6:8], "big") / 65535, 6),
         "resilienceScore": round(int.from_bytes(digest[10:12], "big") / 65535, 6),
     }
+
+
+def _world_names(model_input: Mapping[str, Any]) -> list[str]:
+    requested_worlds = model_input.get("worlds", ("baseline", "adjacent", "frontier"))
+    if not isinstance(requested_worlds, (list, tuple)) or not all(
+        isinstance(world, str) and world.strip() for world in requested_worlds
+    ):
+        raise ValueError("worlds must be a list of non-empty strings")
+    worlds = sorted(set(world.strip() for world in requested_worlds))
+    if not worlds:
+        raise ValueError("worlds cannot be empty")
+    return worlds
 
 
 def _structural_truth_map(model_input: Mapping[str, Any], digest: bytes) -> Dict[str, Any]:

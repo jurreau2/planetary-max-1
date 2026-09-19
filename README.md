@@ -226,6 +226,37 @@ The Worker forwards bearer and `tier` unchanged. The kernel caps the requested
 tier to the bearer entitlement before the SIM export filters detail, then the
 Worker returns normalized `{"ok":true,"data":{...},"meta":{...}}` JSON.
 
+### Cross-world access and structural-truth licensing
+
+The SET 4 Umbrella products follow the same environment-backed bearer
+entitlement contract:
+
+- `POST /umbrella/crossworld/access` routes to `umbrella.crossworld.access`.
+  Basic returns the cross-world identity map and world-vector set;
+  professional adds the stability band; enterprise adds the access envelope.
+- `POST /umbrella/structural/truth/license` routes to
+  `umbrella.structural.truth.license`. Basic returns the structural truth map
+  and curvature graph; professional adds the integrity score; enterprise adds
+  collapse-vector sensitivity.
+
+Both endpoints require this request shape:
+
+```json
+{"tier":"professional"}
+```
+
+Successful responses use the normalized envelope:
+
+```json
+{"ok":true,"data":{"tier":"professional"},"meta":{"messageId":"...","type":"umbrella.crossworld.access","identity":{},"route":["orchestration"]}}
+```
+
+The Worker forwards both the bearer token and requested `tier` unchanged. The
+kernel resolves the bearer through the identity registry and caps the request
+to its explicit `licenseTier`; the SIM export then includes only fields allowed
+for that effective tier. The response reports `requestedTier`,
+`authorizedTier`, and `tierCapped` alongside the effective `tier`.
+
 Set `MAXOS_MODULE` to the installed MAX-OS-1 Python module exporting
 `MaxOsUnifiedOrchestrator`. Without it, a deterministic in-memory universe is
 used for local development and integration tests.

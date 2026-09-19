@@ -56,6 +56,8 @@ describe('normalized Worker integration routes', () => {
     ['POST', '/umbrella/sim/pack', 'umbrella.sim.pack'],
     ['POST', '/umbrella/market/forecast', 'umbrella.market.forecast'],
     ['POST', '/umbrella/identity/mirror', 'umbrella.identity.mirror'],
+    ['POST', '/umbrella/crossworld/access', 'umbrella.crossworld.access'],
+    ['POST', '/umbrella/structural/truth/license', 'umbrella.structural.truth.license'],
   ])('normalizes %s %s lane data', async (method, path, type) => {
     let forwarded: KernelEnvelope | undefined;
     const response = await app.request(path, {
@@ -179,6 +181,57 @@ describe('normalized Worker integration routes', () => {
         tierCapped: true,
       },
       meta: { type: 'identity.physics.license', route: ['orchestration'] },
+    });
+  });
+
+  it.each([
+    ['/umbrella/crossworld/access', 'umbrella.crossworld.access'],
+    ['/umbrella/structural/truth/license', 'umbrella.structural.truth.license'],
+  ])('forwards bearer and tier unchanged for %s', async (path, type) => {
+    const response = await app.request(path, {
+      method: 'POST',
+      headers: {
+        Authorization: 'Bearer set-4-basic-token',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ tier: 'enterprise' }),
+    }, bindings((envelope) => {
+      expect(envelope).toMatchObject({
+        type,
+        identity: 'set-4-basic-token',
+        payload: { tier: 'enterprise' },
+      });
+      return Response.json({
+        ok: true,
+        messageId: envelope.id,
+        type: envelope.type,
+        identity: { id: 'set-4-basic', roles: ['observer'] },
+        route: ['orchestration'],
+        result: {
+          lanes: [{
+            result: {
+              results: [{ result: { data: {
+                tier: 'basic',
+                requestedTier: 'enterprise',
+                authorizedTier: 'basic',
+                tierCapped: true,
+              } } }],
+            },
+          }],
+        },
+      });
+    }));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      ok: true,
+      data: {
+        tier: 'basic',
+        requestedTier: 'enterprise',
+        authorizedTier: 'basic',
+        tierCapped: true,
+      },
+      meta: { type, route: ['orchestration'] },
     });
   });
 
