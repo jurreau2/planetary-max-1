@@ -192,6 +192,8 @@ class MultiDomainScheduler:
                     "governance.engine.license",
                     "apex.alignment.advisory",
                     "umbrella.sim.pack",
+                    "umbrella.market.forecast",
+                    "umbrella.identity.mirror",
                 }
             ):
                 task: Dict[str, Any] = {

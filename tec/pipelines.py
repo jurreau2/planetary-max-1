@@ -7,6 +7,8 @@ from cognitive.licensing import (
     export_apex_alignment,
     export_governance_engine,
     export_identity_physics,
+    export_identity_mirror,
+    export_market_forecast,
     export_sim_pack,
     resolve_license_tier,
 )
@@ -66,6 +68,8 @@ class TECPipeline:
             "governance.engine.license": export_governance_engine,
             "apex.alignment.advisory": export_apex_alignment,
             "umbrella.sim.pack": export_sim_pack,
+            "umbrella.market.forecast": export_market_forecast,
+            "umbrella.identity.mirror": export_identity_mirror,
         }
         if operation in umbrella_exports:
             payload = task.get("payload")

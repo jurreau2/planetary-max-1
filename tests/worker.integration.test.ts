@@ -54,6 +54,8 @@ describe('normalized Worker integration routes', () => {
     ['POST', '/umbrella/governance/license', 'governance.engine.license'],
     ['POST', '/umbrella/apex/advisory', 'apex.alignment.advisory'],
     ['POST', '/umbrella/sim/pack', 'umbrella.sim.pack'],
+    ['POST', '/umbrella/market/forecast', 'umbrella.market.forecast'],
+    ['POST', '/umbrella/identity/mirror', 'umbrella.identity.mirror'],
   ])('normalizes %s %s lane data', async (method, path, type) => {
     let forwarded: KernelEnvelope | undefined;
     const response = await app.request(path, {

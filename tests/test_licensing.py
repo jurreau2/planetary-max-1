@@ -7,7 +7,9 @@ from unittest.mock import patch
 from cognitive.licensing import (
     export_apex_alignment,
     export_governance_engine,
+    export_identity_mirror,
     export_identity_physics,
+    export_market_forecast,
     export_sim_pack,
     resolve_license_tier,
 )
@@ -29,6 +31,12 @@ class LicensingSIMTest(unittest.TestCase):
 
     def sim_pack_export(self, payload, tier: str):
         return export_sim_pack(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def market_forecast_export(self, payload, tier: str):
+        return export_market_forecast(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def identity_mirror_export(self, payload, tier: str):
+        return export_identity_mirror(payload, resolve_license_tier(self.identity(tier), payload))
 
     def test_identity_physics_export_is_deterministic_and_tier_filtered(self) -> None:
         payload = {"tier": "enterprise", "input": {"subject": "alpha", "coordinates": [1, 2, 3]}}
@@ -113,6 +121,44 @@ class LicensingSIMTest(unittest.TestCase):
         self.assertTrue(enterprise["deterministicSeed"].startswith("pack_v1_"))
         self.assertGreaterEqual(enterprise["stability"]["score"], 0)
         self.assertLessEqual(enterprise["stability"]["score"], 1)
+
+    def test_market_forecast_is_deterministic_and_tier_filtered(self) -> None:
+        payload = {"tier": "enterprise", "input": {"market": "umbrella", "epoch": 12}}
+        first = self.market_forecast_export(payload, "enterprise")
+        second = self.market_forecast_export(payload, "enterprise")
+        self.assertEqual(first, second)
+        self.assertEqual(first["exportMode"], "market-forecast")
+        self.assertEqual(len(first["marketVector"]), 3)
+        self.assertEqual([point["horizon"] for point in first["trendProjection"]], [1, 3, 6])
+        self.assertIn("volatilityBand", first)
+        self.assertIn("collapseVectorRisk", first)
+
+        capped = self.market_forecast_export(payload, "basic")
+        self.assertEqual(capped["tier"], "basic")
+        self.assertTrue(capped["tierCapped"])
+        self.assertNotIn("volatilityBand", capped)
+        self.assertNotIn("collapseVectorRisk", capped)
+
+    def test_identity_mirror_is_deterministic_and_tier_filtered(self) -> None:
+        payload = {"tier": "enterprise", "input": {"facets": ["structure", "identity", "behavior"]}}
+        enterprise = self.identity_mirror_export(payload, "enterprise")
+        repeated = self.identity_mirror_export(payload, "enterprise")
+        self.assertEqual(enterprise, repeated)
+        self.assertEqual(enterprise["exportMode"], "identity-mirror")
+        self.assertTrue(enterprise["identitySignature"].startswith("mirror_v1_"))
+        self.assertEqual(len(enterprise["behavioralProjection"]), 3)
+        self.assertIn("structuralTruthMap", enterprise)
+        self.assertEqual(len(enterprise["quantumBranchPreview"]), 3)
+
+        professional = self.identity_mirror_export(payload, "professional")
+        self.assertEqual(professional["tier"], "professional")
+        self.assertTrue(professional["tierCapped"])
+        self.assertIn("behavioralProjection", professional)
+        self.assertIn("structuralTruthMap", professional)
+        self.assertNotIn("quantumBranchPreview", professional)
+
+        basic = self.identity_mirror_export({"tier": "basic", "input": payload["input"]}, "enterprise")
+        self.assertEqual(basic["allowedOutputs"], ["identitySignature"])
 
     def test_environment_backed_identity_requires_explicit_tier_configuration(self) -> None:
         with patch.dict(os.environ, {"PORTAL_SERVICE_TOKEN": "service-token"}, clear=True):

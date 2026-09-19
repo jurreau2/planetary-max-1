@@ -34,7 +34,9 @@ type UmbrellaOperation =
   | 'identity.physics.license'
   | 'governance.engine.license'
   | 'apex.alignment.advisory'
-  | 'umbrella.sim.pack';
+  | 'umbrella.sim.pack'
+  | 'umbrella.market.forecast'
+  | 'umbrella.identity.mirror';
 
 const app = new Hono<{ Bindings: Bindings }>();
 
@@ -102,6 +104,18 @@ app.post('/umbrella/sim/pack', async (c) => umbrellaRequest(
   c.req.header('Authorization'),
   c.req.raw,
   'umbrella.sim.pack',
+));
+app.post('/umbrella/market/forecast', async (c) => umbrellaRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'umbrella.market.forecast',
+));
+app.post('/umbrella/identity/mirror', async (c) => umbrellaRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'umbrella.identity.mirror',
 ));
 app.post('/universe/tick', async (c) => {
   let payload: Record<string, unknown> = {};

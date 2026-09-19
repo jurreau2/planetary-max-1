@@ -196,6 +196,50 @@ class Rebuild2IntegrationTest(unittest.TestCase):
         self.assertFalse(unlicensed_pack["ok"])
         self.assertEqual(unlicensed_pack["error"]["code"], "FORBIDDEN")
 
+    def test_market_forecast_and_identity_mirror_are_tier_capped(self) -> None:
+        forecast_request = {"tier": "enterprise", "input": {"market": "umbrella", "epoch": 12}}
+        basic_forecast = self.kernel.handle_message(envelope(
+            "market-forecast-1", "umbrella.market.forecast", forecast_request, OBSERVER_TOKEN,
+        ))
+        self.assertTrue(basic_forecast["ok"], basic_forecast)
+        forecast_data = basic_forecast["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(forecast_data["tier"], "basic")
+        self.assertTrue(forecast_data["tierCapped"])
+        self.assertIn("marketVector", forecast_data)
+        self.assertIn("trendProjection", forecast_data)
+        self.assertNotIn("volatilityBand", forecast_data)
+        self.assertNotIn("collapseVectorRisk", forecast_data)
+
+        enterprise_forecast = self.kernel.handle_message(envelope(
+            "market-forecast-2", "umbrella.market.forecast", forecast_request, SYSTEM_TOKEN,
+        ))
+        enterprise_forecast_data = enterprise_forecast["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertIn("volatilityBand", enterprise_forecast_data)
+        self.assertIn("collapseVectorRisk", enterprise_forecast_data)
+
+        mirror_request = {"tier": "enterprise", "input": {"facets": ["identity", "behavior", "structure"]}}
+        first_mirror = self.kernel.handle_message(envelope(
+            "identity-mirror-1", "umbrella.identity.mirror", mirror_request, SERVICE_TOKEN,
+        ))
+        second_mirror = self.kernel.handle_message(envelope(
+            "identity-mirror-2", "umbrella.identity.mirror", mirror_request, SERVICE_TOKEN,
+        ))
+        self.assertTrue(first_mirror["ok"], first_mirror)
+        first_data = first_mirror["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        second_data = second_mirror["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(first_data, second_data)
+        self.assertEqual(first_data["tier"], "professional")
+        self.assertTrue(first_data["tierCapped"])
+        self.assertIn("behavioralProjection", first_data)
+        self.assertIn("structuralTruthMap", first_data)
+        self.assertNotIn("quantumBranchPreview", first_data)
+
+        enterprise_mirror = self.kernel.handle_message(envelope(
+            "identity-mirror-3", "umbrella.identity.mirror", mirror_request, SYSTEM_TOKEN,
+        ))
+        enterprise_mirror_data = enterprise_mirror["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertIn("quantumBranchPreview", enterprise_mirror_data)
+
     def test_sim_tec_substrate_flow_and_invariants(self) -> None:
         started = time.monotonic()
         response = self.kernel.handle_message(envelope(
