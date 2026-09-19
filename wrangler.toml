@@ -1,6 +1,10 @@
 name = "planetary-max"
 main = "src/index.ts"
 compatibility_date = "2024-09-01"
+workers_dev = true
+routes = [
+  { pattern = "api.portal-os.com/*", zone_name = "portal-os.com" }
+]
 
 [vars]
 PLANETARY_MODE = "single"
