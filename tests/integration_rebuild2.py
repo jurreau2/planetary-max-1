@@ -62,9 +62,22 @@ class Rebuild2IntegrationTest(unittest.TestCase):
         self.assertFalse(response["ok"])
         self.assertEqual(response["error"]["code"], "UNAUTHENTICATED")
 
+        invalid = self.kernel.handle_message(envelope("identity-2", "universe.state", {}, "not-registered"))
+        self.assertFalse(invalid["ok"])
+        self.assertEqual(invalid["error"]["code"], "UNAUTHENTICATED")
+
         denied = self.kernel.handle_message(envelope("governance-1", "universe.tick", {}, OBSERVER_TOKEN))
         self.assertFalse(denied["ok"])
         self.assertEqual(denied["error"]["code"], "FORBIDDEN")
+
+    def test_autonomy_state_returns_scheduler_telemetry(self) -> None:
+        response = self.kernel.handle_message(envelope("autonomy-1", "autonomy.state", {}, OBSERVER_TOKEN))
+        self.assertTrue(response["ok"], response)
+        self.assertEqual(response["route"], ["orchestration"])
+        data = response["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(data["status"], "ready")
+        self.assertEqual(data["scheduler"]["maxSteps"], 16)
+        self.assertIn("orchestration", data["lanes"])
 
     def test_sim_tec_substrate_flow_and_invariants(self) -> None:
         started = time.monotonic()

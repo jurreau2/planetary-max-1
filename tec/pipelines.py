@@ -1,17 +1,24 @@
 """Bounded TEC task pipeline and MAX-OS-1 surface wiring."""
 
 import time
-from typing import Any, Dict, Mapping
+from typing import Any, Callable, Dict, Mapping, Optional
 
 from maxos_bridge import get_umbrella_status, get_universe_state, start_universe, tick_universe
 from tec.surfaces import SubstrateSurface
 
 
 class TECPipeline:
-    def __init__(self, substrate_surface: SubstrateSurface, timeout_ms: int = 100, max_steps: int = 16) -> None:
+    def __init__(
+        self,
+        substrate_surface: SubstrateSurface,
+        timeout_ms: int = 100,
+        max_steps: int = 16,
+        autonomy_provider: Optional[Callable[[], Mapping[str, Any]]] = None,
+    ) -> None:
         self.substrate_surface = substrate_surface
         self.timeout_ms = timeout_ms
         self.max_steps = max_steps
+        self.autonomy_provider = autonomy_provider
 
     def execute(self, task: Mapping[str, Any]) -> Dict[str, Any]:
         started = time.monotonic()
@@ -38,6 +45,15 @@ class TECPipeline:
 
     def _execute_one(self, task: Mapping[str, Any]) -> Any:
         operation = task.get("operation") or task.get("type") or "noop"
+        if operation == "autonomy.state":
+            if self.autonomy_provider is None:
+                raise RuntimeError("autonomy telemetry provider is unavailable")
+            return {
+                "ok": True,
+                "operation": "autonomy.state",
+                "backend": "kernel",
+                "data": dict(self.autonomy_provider()),
+            }
         if operation == "universe.start":
             return start_universe()
         if operation == "universe.tick":
