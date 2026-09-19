@@ -1,15 +1,43 @@
 name = "planetary-max"
 main = "src/index.ts"
 compatibility_date = "2024-09-01"
-workers_dev = true
-routes = [
-  { pattern = "api.portal-os.com/*", zone_name = "portal-os.com" }
-]
+compatibility_flags = ["nodejs_compat"]
 
+# ============================================================
+# Environment Variables (Worker-side)
+# ============================================================
 [vars]
+API_BASE_URL = "https://planetary-max.jurreaumax.workers.dev"
+MAXOS_MODULE = "local"
 PLANETARY_MODE = "single"
 UMBRELLA_ENFORCEMENT = "strict"
-MAXOS_MODULE = "local"
 
+# ============================================================
+# Worker Routes (activate after DNS)
+# ============================================================
+# Uncomment these once Cloudflare marks your zone as Active:
+#
+# routes = [
+#   { pattern = "api.portal-os.com", custom_domain = true }
+# ]
+
+# ============================================================
+# Build Configuration
+# ============================================================
 [build]
 command = "npm run build"
+cwd = "."
+
+# ============================================================
+# CORS (Umbrella Edge)
+# ============================================================
+[observability]
+enabled = true
+
+# ============================================================
+# Durable Objects (optional future use)
+# ============================================================
+# [durable_objects]
+# bindings = [
+#   { name = "STATE", class_name = "StateObject" }
+# ]
