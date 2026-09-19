@@ -44,6 +44,18 @@ IDENTITY_MIRROR_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
     "enterprise": ("identitySignature", "behavioralProjection", "structuralTruthMap", "quantumBranchPreview"),
 }
 
+CROSSWORLD_ACCESS_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("accessSignature", "reachableWorlds"),
+    "professional": ("accessSignature", "reachableWorlds", "traversalMap"),
+    "enterprise": ("accessSignature", "reachableWorlds", "traversalMap", "quantumBridge"),
+}
+
+STRUCTURAL_TRUTH_OUTPUTS: Mapping[str, Tuple[str, ...]] = {
+    "basic": ("truthSignature", "coherence"),
+    "professional": ("truthSignature", "coherence", "structuralTruthMap"),
+    "enterprise": ("truthSignature", "coherence", "structuralTruthMap", "contradictionVectors"),
+}
+
 
 @dataclass(frozen=True)
 class LicenseGrant:
@@ -268,6 +280,85 @@ def export_identity_mirror(payload: Mapping[str, Any], grant: LicenseGrant) -> D
         IDENTITY_MIRROR_OUTPUTS[grant.effective],
         outputs,
         export_mode="identity-mirror",
+    )
+
+
+def export_crossworld_access(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Export deterministic cross-world access data filtered by effective tier."""
+    model_input = _model_input(payload)
+    digest = _digest("umbrella-crossworld-access", model_input)
+    requested_worlds = model_input.get("worlds", ("origin", "adjacent", "frontier"))
+    if not isinstance(requested_worlds, (list, tuple)) or not all(
+        isinstance(world, str) and world.strip() for world in requested_worlds
+    ):
+        raise ValueError("crossworld worlds must be a list of non-empty strings")
+    worlds = sorted(set(world.strip() for world in requested_worlds))
+    if not worlds:
+        raise ValueError("crossworld worlds cannot be empty")
+    requested_origin = model_input.get("origin", "origin" if "origin" in worlds else worlds[0])
+    if not isinstance(requested_origin, str) or requested_origin.strip() not in worlds:
+        raise ValueError("crossworld origin must name a requested world")
+    origin = requested_origin.strip()
+
+    reachable_worlds = [
+        {
+            "world": world,
+            "accessScore": round(0.5 + digest[index % len(digest)] / 510, 6),
+        }
+        for index, world in enumerate(worlds)
+    ]
+    outputs: Dict[str, Any] = {
+        "accessSignature": f"crossworld_v1_{digest.hex()[:32]}",
+        "reachableWorlds": reachable_worlds,
+        "traversalMap": {
+            "origin": origin,
+            "routes": [
+                {
+                    "from": origin,
+                    "to": world,
+                    "stability": round(0.55 + digest[(8 + index) % len(digest)] / 567, 6),
+                }
+                for index, world in enumerate(worlds)
+                if world != origin
+            ],
+        },
+        "quantumBridge": {
+            "vector": _vector(digest, 16),
+            "coherence": round(0.5 + digest[22] / 510, 6),
+            "branchPreview": _quantum_branches(digest),
+        },
+    }
+    return _licensed_payload(
+        "umbrella-crossworld-access",
+        grant,
+        CROSSWORLD_ACCESS_OUTPUTS[grant.effective],
+        outputs,
+        export_mode="crossworld-access",
+    )
+
+
+def export_structural_truth(payload: Mapping[str, Any], grant: LicenseGrant) -> Dict[str, Any]:
+    """Export deterministic structural-truth evidence filtered by effective tier."""
+    model_input = _model_input(payload)
+    digest = _digest("structural-truth-license", model_input)
+    truth_map = _structural_truth_map(model_input, digest)
+    contradiction_vectors = {
+        "identity": _vector(digest, 0),
+        "behavior": _vector(digest, 8),
+        "structure": _vector(digest, 16),
+    }
+    outputs: Dict[str, Any] = {
+        "truthSignature": f"truth_v1_{digest.hex()[:32]}",
+        "coherence": truth_map["coherence"],
+        "structuralTruthMap": truth_map,
+        "contradictionVectors": contradiction_vectors,
+    }
+    return _licensed_payload(
+        "structural-truth",
+        grant,
+        STRUCTURAL_TRUTH_OUTPUTS[grant.effective],
+        outputs,
+        export_mode="structural-truth",
     )
 
 

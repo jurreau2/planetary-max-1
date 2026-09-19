@@ -1,4 +1,5 @@
 import { Hono } from 'hono';
+import { cors } from 'hono/cors';
 
 type KernelEnvelope = {
   id: string;
@@ -36,9 +37,17 @@ type UmbrellaOperation =
   | 'apex.alignment.advisory'
   | 'umbrella.sim.pack'
   | 'umbrella.market.forecast'
-  | 'umbrella.identity.mirror';
+  | 'umbrella.identity.mirror'
+  | 'umbrella.crossworld.access'
+  | 'structural.truth.license';
 
 const app = new Hono<{ Bindings: Bindings }>();
+
+app.use('/umbrella/*', cors({
+  origin: '*',
+  allowHeaders: ['Authorization', 'Content-Type'],
+  allowMethods: ['POST', 'OPTIONS'],
+}));
 
 // ⭐ ROOT ROUTE — this fixes the 404 at /
 app.get('/', (c) => {
@@ -116,6 +125,18 @@ app.post('/umbrella/identity/mirror', async (c) => umbrellaRequest(
   c.req.header('Authorization'),
   c.req.raw,
   'umbrella.identity.mirror',
+));
+app.post('/umbrella/crossworld/access', async (c) => umbrellaRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'umbrella.crossworld.access',
+));
+app.post('/umbrella/structural/truth/license', async (c) => umbrellaRequest(
+  c.env,
+  c.req.header('Authorization'),
+  c.req.raw,
+  'structural.truth.license',
 ));
 app.post('/universe/tick', async (c) => {
   let payload: Record<string, unknown> = {};

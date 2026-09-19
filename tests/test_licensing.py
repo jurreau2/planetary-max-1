@@ -6,11 +6,13 @@ from unittest.mock import patch
 
 from cognitive.licensing import (
     export_apex_alignment,
+    export_crossworld_access,
     export_governance_engine,
     export_identity_mirror,
     export_identity_physics,
     export_market_forecast,
     export_sim_pack,
+    export_structural_truth,
     resolve_license_tier,
 )
 from identity.registry import IdentityRegistry
@@ -37,6 +39,12 @@ class LicensingSIMTest(unittest.TestCase):
 
     def identity_mirror_export(self, payload, tier: str):
         return export_identity_mirror(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def crossworld_access_export(self, payload, tier: str):
+        return export_crossworld_access(payload, resolve_license_tier(self.identity(tier), payload))
+
+    def structural_truth_export(self, payload, tier: str):
+        return export_structural_truth(payload, resolve_license_tier(self.identity(tier), payload))
 
     def test_identity_physics_export_is_deterministic_and_tier_filtered(self) -> None:
         payload = {"tier": "enterprise", "input": {"subject": "alpha", "coordinates": [1, 2, 3]}}
@@ -159,6 +167,41 @@ class LicensingSIMTest(unittest.TestCase):
 
         basic = self.identity_mirror_export({"tier": "basic", "input": payload["input"]}, "enterprise")
         self.assertEqual(basic["allowedOutputs"], ["identitySignature"])
+
+    def test_crossworld_access_is_deterministic_and_tier_filtered(self) -> None:
+        payload = {"tier": "enterprise", "input": {"worlds": ["frontier", "origin", "adjacent"]}}
+        enterprise = self.crossworld_access_export(payload, "enterprise")
+        repeated = self.crossworld_access_export(payload, "enterprise")
+
+        self.assertEqual(enterprise, repeated)
+        self.assertEqual(enterprise["exportMode"], "crossworld-access")
+        self.assertTrue(enterprise["accessSignature"].startswith("crossworld_v1_"))
+        self.assertEqual([world["world"] for world in enterprise["reachableWorlds"]], ["adjacent", "frontier", "origin"])
+        self.assertEqual(enterprise["traversalMap"]["origin"], "origin")
+        self.assertTrue(all(route["from"] == "origin" for route in enterprise["traversalMap"]["routes"]))
+        self.assertIn("traversalMap", enterprise)
+        self.assertIn("quantumBridge", enterprise)
+
+        basic = self.crossworld_access_export(payload, "basic")
+        self.assertTrue(basic["tierCapped"])
+        self.assertNotIn("traversalMap", basic)
+        self.assertNotIn("quantumBridge", basic)
+
+    def test_structural_truth_is_deterministic_and_tier_filtered(self) -> None:
+        payload = {"tier": "enterprise", "input": {"facets": ["structure", "identity", "behavior"]}}
+        enterprise = self.structural_truth_export(payload, "enterprise")
+        repeated = self.structural_truth_export(payload, "enterprise")
+
+        self.assertEqual(enterprise, repeated)
+        self.assertEqual(enterprise["exportMode"], "structural-truth")
+        self.assertTrue(enterprise["truthSignature"].startswith("truth_v1_"))
+        self.assertIn("structuralTruthMap", enterprise)
+        self.assertEqual(set(enterprise["contradictionVectors"]), {"identity", "behavior", "structure"})
+
+        professional = self.structural_truth_export(payload, "professional")
+        self.assertTrue(professional["tierCapped"])
+        self.assertIn("structuralTruthMap", professional)
+        self.assertNotIn("contradictionVectors", professional)
 
     def test_environment_backed_identity_requires_explicit_tier_configuration(self) -> None:
         with patch.dict(os.environ, {"PORTAL_SERVICE_TOKEN": "service-token"}, clear=True):

@@ -13,6 +13,7 @@ class GovernanceEngine:
         "identity.physics.license", "governance.engine.license",
         "apex.alignment.advisory", "umbrella.sim.pack",
         "umbrella.market.forecast", "umbrella.identity.mirror",
+        "umbrella.crossworld.access", "structural.truth.license",
     }
     _OBSERVER_ACTIONS = {
         "cognitive.process", "substrate.read", "governance.inspect",
@@ -20,6 +21,7 @@ class GovernanceEngine:
         "governance.engine.license",
         "apex.alignment.advisory", "umbrella.sim.pack",
         "umbrella.market.forecast", "umbrella.identity.mirror",
+        "umbrella.crossworld.access", "structural.truth.license",
     }
 
     def authorize(self, identity: Identity, action: str, context: Optional[Mapping[str, Any]] = None) -> bool:

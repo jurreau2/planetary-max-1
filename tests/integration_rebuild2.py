@@ -240,6 +240,34 @@ class Rebuild2IntegrationTest(unittest.TestCase):
         enterprise_mirror_data = enterprise_mirror["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
         self.assertIn("quantumBranchPreview", enterprise_mirror_data)
 
+    def test_crossworld_access_and_structural_truth_are_kernel_authorized(self) -> None:
+        crossworld_request = {"tier": "enterprise", "input": {"worlds": ["origin", "adjacent"]}}
+        crossworld = self.kernel.handle_message(envelope(
+            "crossworld-1", "umbrella.crossworld.access", crossworld_request, SERVICE_TOKEN,
+        ))
+        self.assertTrue(crossworld["ok"], crossworld)
+        crossworld_data = crossworld["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(crossworld_data["tier"], "professional")
+        self.assertTrue(crossworld_data["tierCapped"])
+        self.assertIn("traversalMap", crossworld_data)
+        self.assertNotIn("quantumBridge", crossworld_data)
+
+        truth_request = {"tier": "enterprise", "input": {"facets": ["identity", "structure"]}}
+        truth = self.kernel.handle_message(envelope(
+            "structural-truth-1", "structural.truth.license", truth_request, OBSERVER_TOKEN,
+        ))
+        self.assertTrue(truth["ok"], truth)
+        truth_data = truth["result"]["lanes"][0]["result"]["results"][0]["result"]["data"]
+        self.assertEqual(truth_data["tier"], "basic")
+        self.assertIn("truthSignature", truth_data)
+        self.assertNotIn("structuralTruthMap", truth_data)
+
+        unlicensed = self.kernel.handle_message(envelope(
+            "crossworld-2", "umbrella.crossworld.access", {"tier": "basic"}, UNLICENSED_TOKEN,
+        ))
+        self.assertFalse(unlicensed["ok"])
+        self.assertEqual(unlicensed["error"]["code"], "FORBIDDEN")
+
     def test_sim_tec_substrate_flow_and_invariants(self) -> None:
         started = time.monotonic()
         response = self.kernel.handle_message(envelope(
