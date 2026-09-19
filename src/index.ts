@@ -43,10 +43,10 @@ type UmbrellaOperation =
 
 const app = new Hono<{ Bindings: Bindings }>();
 
-app.use('/umbrella/*', cors({
+app.use('*', cors({
   origin: '*',
-  allowHeaders: ['Authorization', 'Content-Type'],
-  allowMethods: ['POST', 'OPTIONS'],
+  allowHeaders: ['Content-Type', 'Authorization'],
+  allowMethods: ['GET', 'POST', 'OPTIONS'],
 }));
 
 // ⭐ ROOT ROUTE — this fixes the 404 at /

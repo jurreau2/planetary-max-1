@@ -39,9 +39,10 @@ function bindings(handler: (envelope: KernelEnvelope) => Response | Promise<Resp
 
 describe('normalized Worker integration routes', () => {
   it('exposes the public edge health contract', async () => {
-    const response = await app.request('/health');
+    const response = await app.request('/health', { headers: { Origin: 'https://portal-os.com' } });
 
     expect(response.status).toBe(200);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
     expect(await response.json()).toEqual({ status: 'ok', service: 'portal-os-worker' });
   });
 
@@ -218,7 +219,24 @@ describe('normalized Worker integration routes', () => {
 
     expect(response.status).toBe(204);
     expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
     expect(response.headers.get('Access-Control-Allow-Methods')).toContain('POST');
+    expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
+  });
+
+  it('allows browser preflight for authenticated API routes', async () => {
+    const response = await app.request('/api/autonomy', {
+      method: 'OPTIONS',
+      headers: {
+        Origin: 'https://portal-os.com',
+        'Access-Control-Request-Method': 'GET',
+        'Access-Control-Request-Headers': 'authorization',
+      },
+    });
+
+    expect(response.status).toBe(204);
+    expect(response.headers.get('Access-Control-Allow-Origin')).toBe('*');
+    expect(response.headers.get('Access-Control-Allow-Methods')).toContain('GET');
     expect(response.headers.get('Access-Control-Allow-Headers')).toContain('Authorization');
   });
 });
