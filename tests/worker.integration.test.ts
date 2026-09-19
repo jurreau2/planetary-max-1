@@ -38,6 +38,13 @@ function bindings(handler: (envelope: KernelEnvelope) => Response | Promise<Resp
 }
 
 describe('normalized Worker integration routes', () => {
+  it('exposes the public edge health contract', async () => {
+    const response = await app.request('/health');
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ status: 'ok', service: 'portal-os-worker' });
+  });
+
   it.each([
     ['GET', '/api/autonomy', 'autonomy.state'],
     ['GET', '/universe/state', 'universe.state'],
